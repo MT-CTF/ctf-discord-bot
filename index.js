@@ -2,9 +2,40 @@ const Discord = require('discord.js');
 const fs = require("fs/promises");
 const client = new Discord.Client();
 const statsPath = process.env.STATS;
+const rankingsChannel = process.env.RANKINGS_CHANNEL;
 const prefix = '!';
 
 let statsList = null;
+
+async function updateRankingsChannel(list) {
+	if (!rankingsChannel) {
+		return;
+	}
+
+	const channel = client.channels.cache.get(rankingsChannel);
+	if (!channel) {
+		return;
+	}
+
+	const newContent = list.slice(0, 20)
+		.map(stats => {
+			let kd = stats.kills;
+			if (stats.deaths > 1) {
+				kd /= stats.deaths;
+			}
+
+			return `${stats.place}. **${stats.name}**: Kills: ${stats.kills} | Deaths: ${stats.deaths} | K/D: ${kd.toFixed(1)}`;
+		})
+		.join("\n");
+
+	const messages = await channel.messages.fetch({ limit: 1 });
+	if (messages.size == 0) {
+		channel.send(newContent);
+	} else {
+		const message = messages.first();
+		message.edit(newContent);
+	}
+}
 
 async function updateStats() {
 	const content = (await fs.readFile(statsPath)).toString();
@@ -16,9 +47,11 @@ async function updateStats() {
 		statsList[key.toLowerCase()] = list[key];
 	}
 
-	Object.values(statsList).sort((a, b) => b.score - a.score).forEach((stats, i) => {
+	const orderedList = Object.values(statsList).sort((a, b) => b.score - a.score);
+	orderedList.forEach((stats, i) => {
 		stats.place = i + 1;
 	});
+	updateRankingsChannel(orderedList);
 }
 
 
