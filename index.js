@@ -1,4 +1,4 @@
-import { Client } from 'discord.js';
+import { Client, MessageEmbed } from 'discord.js';
 import { readFile } from "fs/promises";
 const client = new Client();
 const statsPath = process.env.STATS;
@@ -25,6 +25,19 @@ async function updateStats() {
 updateStats();
 setInterval(updateStats, 30000);
 
+function ordinalSuffixOf(i) {
+    var j = i % 10, k = i % 100;
+    if (j == 1 && k != 11) {
+        return i + "st";
+    }
+    if (j == 2 && k != 12) {
+        return i + "nd";
+    }
+    if (j == 3 && k != 13) {
+        return i + "rd";
+    }
+    return i + "th";
+}
 
 function formatRanking(stats) {
 	let kd = stats.kills;
@@ -32,9 +45,21 @@ function formatRanking(stats) {
 		kd /= stats.deaths;
 	}
 
-	return `${stats.name} is in ${stats.place} place, with ${Math.round(stats.score)} score.\n` +
-			`Kills: ${stats.kills} | Deaths: ${stats.deaths} | K/D: ${kd.toFixed(1)}\n` +
-			`Bounty kills: ${stats.bounty_kills} | Captures: ${stats.captures} | Attempts: ${stats.attempts}`;
+	const fields = [
+		{ name: "Kills", value: stats.kills, inline: true },
+		{ name: "Deaths", value: stats.deaths, inline: true },
+		{ name: "K/D", value: kd.toFixed(1), inline: true },
+		{ name: "Bounty kills", value: stats.bounty_kills, inline: true },
+		{ name: "Captures", value: stats.captures, inline: true },
+		{ name: "Attempts", value: stats.attempts, inline: true },
+	]
+
+	return new MessageEmbed()
+		.setColor('#0099ff')
+		.setTitle(`${stats.name}, ${ordinalSuffixOf(stats.place)}`)
+		.setDescription(`${stats.name} is in ${ordinalSuffixOf(stats.place)} place, with ${Math.round(stats.score)} score.`)
+		.addFields(fields)
+		.setTimestamp();
 }
 
 
