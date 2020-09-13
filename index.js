@@ -2,10 +2,43 @@ const Discord = require('discord.js');
 const fs = require("fs/promises");
 const client = new Discord.Client();
 const statsPath = process.env.STATS;
+const oldStatsPath = process.env.OLD_STATS;
 const rankingsChannel = process.env.RANKINGS_CHANNEL;
 const prefix = '!';
 
+async function readStats(path) {
+	const content = (await fs.readFile(path)).toString();
+
+	let list = {};
+	const raw = JSON.parse(JSON.parse(content).players);
+	for (let key in raw) {
+		list[key.toLowerCase()] = raw[key];
+	}
+
+	const orderedList = Object.values(list).sort((a, b) => b.score - a.score);
+	orderedList.forEach((stats, i) => {
+		stats.place = i + 1;
+	});
+
+	return [list, orderedList];
+}
+
+let oldStatsList = null;
 let statsList = null;
+
+async function updateStats() {
+	const ret = await readStats(statsPath);
+	statsList = ret[0];
+	updateRankingsChannel(ret[1]);
+}
+
+async function updateOldStats() {
+	oldStatsList = (await readStats(oldStatsPath))[0];
+}
+
+updateStats();
+updateOldStats();
+setInterval(updateStats, 3000);
 
 async function updateRankingsChannel(list) {
 	if (!rankingsChannel) {
@@ -24,7 +57,7 @@ async function updateRankingsChannel(list) {
 				kd /= stats.deaths;
 			}
 
-			return `${stats.place}. **${stats.name}**: Kills: ${stats.kills} | Deaths: ${stats.deaths} | K/D: ${kd.toFixed(1)}`;
+			return `${stats.place}. **${stats.name}**: K/D: ${kd.toFixed(1)} | Score: ${Math.round(stats.score)}`;
 		})
 		.join("\n");
 
@@ -36,27 +69,6 @@ async function updateRankingsChannel(list) {
 		message.edit(newContent);
 	}
 }
-
-async function updateStats() {
-	const content = (await fs.readFile(statsPath)).toString();
-
-	statsList = {};
-
-	const list = JSON.parse(JSON.parse(content).players);
-	for (let key in list) {
-		statsList[key.toLowerCase()] = list[key];
-	}
-
-	const orderedList = Object.values(statsList).sort((a, b) => b.score - a.score);
-	orderedList.forEach((stats, i) => {
-		stats.place = i + 1;
-	});
-	updateRankingsChannel(orderedList);
-}
-
-
-updateStats();
-setInterval(updateStats, 30000);
 
 function ordinalSuffixOf(i) {
     var j = i % 10, k = i % 100;
@@ -95,6 +107,34 @@ function formatRanking(stats) {
 		.setTimestamp();
 }
 
+function handleRankRequest(rankList, message, args) {
+	if (!rankList) {
+		message.channel.send("Please wait, stats are still loading...");
+		return;
+	}
+
+	const username = message.author.username;
+	const nickname = message.member.nickname || username;
+
+	let stats;
+	if (args.length == 0) {
+		stats = rankList[nickname.toLowerCase()] || rankList[username.toLowerCase()];
+		if (!stats) {
+			message.channel.send(`Unable to find ${nickname} or ${username}, please provide username explicitly like so: \`!rank username\``);
+			return;
+		}
+	} else {
+		const name = args[0].trim();
+		stats = rankList[name.toLowerCase()];
+		if (!stats) {
+			message.channel.send(`Unable to find user ${args[0]}`);
+			return;
+		}
+	}
+
+	message.channel.send(formatRanking(stats));
+}
+
 
 client.on('ready', () => {
 	console.log(`Logged in as ${client.user.tag}!`);
@@ -109,26 +149,9 @@ client.on('message', message => {
 	const command = args.shift().toLowerCase();
 
 	if (command == "rank") {
-		const username = message.author.username;
-		const nickname = message.member.nickname || username;
-
-		let stats;
-		if (args.length == 0) {
-			stats = statsList[nickname.toLowerCase()] || statsList[username.toLowerCase()];
-			if (!stats) {
-				message.channel.send(`Unable to find ${nickname} or ${username}, please provide username explicitly like so: \`!rank username\``);
-				return;
-			}
-		} else {
-			const name = args[0].trim();
-			stats = statsList[name.toLowerCase()];
-			if (!stats) {
-				message.channel.send(`Unable to find user ${args[0]}`);
-				return;
-			}
-		}
-
-		message.channel.send(formatRanking(stats));
+		handleRankRequest(statsList, message, args);
+	} else if (command == "oldrank") {
+		handleRankRequest(oldStatsList, message, args);
 	}
 });
 
