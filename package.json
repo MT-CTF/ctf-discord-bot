@@ -1,0 +1,24 @@
+{
+  "name": "ctf-discord-bot",
+  "version": "0.1.0",
+  "description": "A bot to manage roles and such on Discord",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MT-CTF/ctf-discord-bot.git"
+  },
+  "author": "rubenwardy",
+  "license": "LGPL-2.1-or-later",
+  "bugs": {
+    "url": "https://github.com/MT-CTF/ctf-discord-bot/issues"
+  },
+  "homepage": "https://github.com/MT-CTF/ctf-discord-bot#readme",
+  "dependencies": {
+    "discord.js": "^12.3.1"
+  }
+}
