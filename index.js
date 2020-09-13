@@ -1,13 +1,13 @@
-import { Client, MessageEmbed } from 'discord.js';
-import { readFile } from "fs/promises";
-const client = new Client();
+const Discord = require('discord.js');
+const fs = require("fs/promises");
+const client = new Discord.Client();
 const statsPath = process.env.STATS;
 const prefix = '!';
 
 let statsList = null;
 
 async function updateStats() {
-	const content = (await readFile(statsPath)).toString();
+	const content = (await fs.readFile(statsPath)).toString();
 
 	statsList = {};
 
@@ -54,7 +54,7 @@ function formatRanking(stats) {
 		{ name: "Attempts", value: stats.attempts, inline: true },
 	]
 
-	return new MessageEmbed()
+	return new Discord.MessageEmbed()
 		.setColor('#0099ff')
 		.setTitle(`${stats.name}, ${ordinalSuffixOf(stats.place)}`)
 		.setDescription(`${stats.name} is in ${ordinalSuffixOf(stats.place)} place, with ${Math.round(stats.score)} score.`)
