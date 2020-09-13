@@ -38,7 +38,7 @@ async function updateOldStats() {
 
 updateStats();
 updateOldStats();
-setInterval(updateStats, 3000);
+setInterval(updateStats, 30000);
 
 async function updateRankingsChannel(list) {
 	if (!rankingsChannel) {
