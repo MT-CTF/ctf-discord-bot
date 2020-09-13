@@ -152,6 +152,8 @@ client.on('message', message => {
 		handleRankRequest(statsList, message, args);
 	} else if (command == "oldrank") {
 		handleRankRequest(oldStatsList, message, args);
+	} else if (command == "help") {
+		message.channel.send("Commands: `!rank`, `!oldrank`, `!help`");
 	}
 });
 
