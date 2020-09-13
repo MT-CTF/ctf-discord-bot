@@ -76,11 +76,14 @@ client.on('message', message => {
 	const command = args.shift().toLowerCase();
 
 	if (command == "rank") {
+		const username = message.author.username;
+		const nickname = message.member.nickname || username;
+
 		let stats;
 		if (args.length == 0) {
-			stats = statsList[message.member.nickname.toLowerCase()] || statsList[message.author.username.toLowerCase()];
+			stats = statsList[nickname] || statsList[username];
 			if (!stats) {
-				message.channel.send(`Unable to find ${message.member.nickname} or ${message.author.username}, please provide it explicitly like so: !rank username`);
+				message.channel.send(`Unable to find ${nickname} or ${username}, please provide it explicitly like so: !rank username`);
 				return;
 			}
 		} else {
