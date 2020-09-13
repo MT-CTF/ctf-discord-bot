@@ -81,9 +81,9 @@ client.on('message', message => {
 
 		let stats;
 		if (args.length == 0) {
-			stats = statsList[nickname] || statsList[username];
+			stats = statsList[nickname.toLowerCase()] || statsList[username.toLowerCase()];
 			if (!stats) {
-				message.channel.send(`Unable to find ${nickname} or ${username}, please provide it explicitly like so: !rank username`);
+				message.channel.send(`Unable to find ${nickname} or ${username}, please provide username explicitly like so: \`!rank username\``);
 				return;
 			}
 		} else {
