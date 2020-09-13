@@ -12,7 +12,7 @@
     "url": "git+https://github.com/MT-CTF/ctf-discord-bot.git"
   },
   "author": "rubenwardy",
-  "license": "LGPL-2.1-or-later",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/MT-CTF/ctf-discord-bot/issues"
   },
