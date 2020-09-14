@@ -40,24 +40,18 @@ updateStats();
 updateOldStats();
 setInterval(updateStats, 30000);
 
-async function updateRankingsChannel(list) {
-	if (!rankingsChannel) {
-		return;
-	}
 
-	const channel = client.channels.cache.get(rankingsChannel);
-	if (!channel) {
-		return;
-	}
-
+function formatLeaderboard(list) {
 	const rankingsEmbed = new Discord.MessageEmbed()
-	.setColor("#0099ff")
-	.setTitle("CTF Rankings")
+		.setColor("#0099ff")
+		.setTitle("CTF Rankings")
 
-	let rankPlaces = [{from: 0, to: 20}, {from: 20, to: 40}, {from: 40, to: 50}]
+	const max = 60;
+	for (var i = 0; i < max; i += 20) {
+		const from = i;
+		const to = i + 20
 
-	rankPlaces.forEach(function(places) {
-		const newContent = list.slice(places.from, places.to)
+		const newContent = list.slice(from, to)
 			.map(stats => {
 				let kd = stats.kills;
 				if (stats.deaths > 1) {
@@ -70,9 +64,23 @@ async function updateRankingsChannel(list) {
 			})
 			.join("\n");
 
-		rankingsEmbed.addField(`__Top ${places.from+1} - ${places.to}__`, newContent, true)
-	});
+		rankingsEmbed.addField(`__Top ${from+1} - ${to}__`, newContent, true)
+	}
 
+	return rankingsEmbed;
+}
+
+async function updateRankingsChannel(list) {
+	if (!rankingsChannel) {
+		return;
+	}
+
+	const channel = client.channels.cache.get(rankingsChannel);
+	if (!channel) {
+		return;
+	}
+
+	const rankingsEmbed = formatLeaderboard(list);
 	const messages = await channel.messages.fetch({ limit: 1 });
 	if (messages.size == 0) {
 		channel.send(rankingsEmbed);
@@ -119,7 +127,7 @@ function formatRanking(stats) {
 		.setTimestamp();
 }
 
-function handleRankRequest(rankList, message, args) {
+function handleRankRequest(rankList, message, command, args) {
 	if (!rankList) {
 		message.channel.send("Please wait, stats are still loading...");
 		return;
@@ -136,8 +144,7 @@ function handleRankRequest(rankList, message, args) {
 			return;
 		}
 	} else {
-		const name = args[0].trim();
-		stats = rankList[name.toLowerCase()];
+		stats = rankList[args[0].trim().toLowerCase()];
 		if (!stats) {
 			message.channel.send(`Unable to find user ${args[0]}`);
 			return;
@@ -145,6 +152,10 @@ function handleRankRequest(rankList, message, args) {
 	}
 
 	message.channel.send(formatRanking(stats));
+
+	if (args.length > 0 && stats.name.toLowerCase() == nickname.toLowerCase()) {
+		message.channel.send(`_pst: you can just use \`!${command}\`_`);
+	}
 }
 
 
@@ -160,12 +171,15 @@ client.on("message", message => {
 	const args = message.content.slice(prefix.length).trim().split(" ");
 	const command = args.shift().toLowerCase();
 
-	if (command == "rank") {
-		handleRankRequest(statsList, message, args);
+	if (command == "rank" || command == "r" || command == "rankings") {
+		handleRankRequest(statsList, message, command, args);
 	} else if (command == "oldrank") {
-		handleRankRequest(oldStatsList, message, args);
+		handleRankRequest(oldStatsList, message, command, args);
+	} else if (command == "oldleaders") {
+		const orderedList = Object.values(oldStatsList).sort((a, b) => b.score - a.score);
+		message.channel.send(formatLeaderboard(orderedList));
 	} else if (command == "help") {
-		message.channel.send("Commands: `!rank`, `!oldrank`, `!help`");
+		message.channel.send("Commands: `!rank`, `!oldrank`, `!oldleaders`, `!help`");
 	}
 });
 
