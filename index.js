@@ -178,6 +178,13 @@ client.on("message", message => {
 	} else if (command == "oldleaders") {
 		const orderedList = Object.values(oldStatsList).sort((a, b) => b.score - a.score);
 		message.channel.send(formatLeaderboard(orderedList));
+	} else if (command == "leaders") {
+		if (rankingsChannel) {
+			message.channel.send(`<#${rankingsChannel}>`);
+		} else {
+			const orderedList = Object.values(statsList).sort((a, b) => b.score - a.score);
+			message.channel.send(formatLeaderboard(orderedList));
+		}
 	} else if (command == "help") {
 		message.channel.send("Commands: `!rank`, `!oldrank`, `!oldleaders`, `!help`");
 	}
