@@ -1,10 +1,10 @@
-const Discord = require('discord.js');
+const Discord = require("discord.js");
 const fs = require("fs/promises");
 const client = new Discord.Client();
 const statsPath = process.env.STATS;
 const oldStatsPath = process.env.OLD_STATS;
 const rankingsChannel = process.env.RANKINGS_CHANNEL;
-const prefix = '!';
+const prefix = "!";
 
 async function readStats(path) {
 	const content = (await fs.readFile(path)).toString();
@@ -50,23 +50,35 @@ async function updateRankingsChannel(list) {
 		return;
 	}
 
-	const newContent = list.slice(0, 20)
-		.map(stats => {
-			let kd = stats.kills;
-			if (stats.deaths > 1) {
-				kd /= stats.deaths;
-			}
+	const rankingsEmbed = new Discord.MessageEmbed()
+	.setColor("#0099ff")
+	.setTitle("CTF Rankings")
 
-			return `${stats.place}. **${stats.name}**: K/D: ${kd.toFixed(1)} | Score: ${Math.round(stats.score)}`;
-		})
-		.join("\n");
+	let rankPlaces = [{from: 0, to: 20}, {from: 20, to: 40}, {from: 40, to: 50}]
+
+	rankPlaces.forEach(function(places) {
+		const newContent = list.slice(places.from, places.to)
+			.map(stats => {
+				let kd = stats.kills;
+				if (stats.deaths > 1) {
+					kd /= stats.deaths;
+				}
+
+				stats.name = stats.name.replace("_", "\\_")
+
+				return `**${stats.place}. ${stats.name}**\nK/D: ${kd.toFixed(1)} - Score: *${Math.round(stats.score)}*`;
+			})
+			.join("\n");
+
+		rankingsEmbed.addField(`__Top ${places.from+1} - ${places.to}__`, newContent, true)
+	});
 
 	const messages = await channel.messages.fetch({ limit: 1 });
 	if (messages.size == 0) {
-		channel.send(newContent);
+		channel.send(rankingsEmbed);
 	} else {
 		const message = messages.first();
-		message.edit(newContent);
+		message.edit(rankingsEmbed);
 	}
 }
 
@@ -100,7 +112,7 @@ function formatRanking(stats) {
 	]
 
 	return new Discord.MessageEmbed()
-		.setColor('#0099ff')
+		.setColor("#0099ff")
 		.setTitle(`${stats.name}, ${ordinalSuffixOf(stats.place)}`)
 		.setDescription(`${stats.name} is in ${ordinalSuffixOf(stats.place)} place, with ${Math.round(stats.score)} score.`)
 		.addFields(fields)
@@ -136,16 +148,16 @@ function handleRankRequest(rankList, message, args) {
 }
 
 
-client.on('ready', () => {
+client.on("ready", () => {
 	console.log(`Logged in as ${client.user.tag}!`);
 });
 
-client.on('message', message => {
+client.on("message", message => {
 	if (message.content[0] != prefix) {
 		return;
 	}
 
-	const args = message.content.slice(prefix.length).trim().split(' ');
+	const args = message.content.slice(prefix.length).trim().split(" ");
 	const command = args.shift().toLowerCase();
 
 	if (command == "rank") {
