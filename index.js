@@ -195,7 +195,7 @@ client.on("message", message => {
         	.addField(prefix + "oldleaders", "Shows old top 60 leaderboard", false)
         	.addField(prefix + "help", "Shows the available commands", false)
 
-    		return message.channel.send(helpEmbed);
+    	return message.channel.send(helpEmbed);
 	}
 });
 
