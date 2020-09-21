@@ -191,7 +191,7 @@ client.on("message", message => {
 			.setColor("#0000E5")
 			.addField(prefix + "rank", "Shows ingame rankings", false)
 			.addField(prefix + "oldrank", "Shows old rankings", false)
-			.addField(prefix + "leaders", "Shows the top 60 leaderboard or links you to the channel for it", false)
+			.addField(prefix + "leaders", "Shows the top 60 leaderboard or links to the dedicated channel for it", false)
 			.addField(prefix + "oldleaders", "Shows old top 60 leaderboard", false)
 			.addField(prefix + "help", "Shows the available commands", false)
 
