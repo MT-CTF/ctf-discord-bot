@@ -197,6 +197,7 @@ client.on("message", message => {
 
 		return message.channel.send(helpEmbed);
 	} else if (command == "mute") {
+		if(!message.member.hasPermission("KICK_MEMBERS")) return message.reply("You dont have the permission to run this command");
 		let muteuser = message.guild.member(message.mentions.users.first() || message.guild.members.get(args[0]));
 		if(!muteuser) return message.reply("Couldn't find user");
 		if(muteuser.hasPermission("KICK_MEMBERS")) return message.reply("Can't mute them, the user you are trying to mute is a staff member!");
@@ -205,6 +206,7 @@ client.on("message", message => {
 		(muteuser.roles.add(muterole.id));
 		message.reply(`<@${muteuser.id}> has been muted`);
 	} else if (command == "unmute") {
+		if(!message.member.hasPermission("KICK_MEMBERS")) return message.reply("You dont have the permission to run this command");
 		let unmuteuser = message.guild.member(message.mentions.users.first() || message.guild.members.get(args[0]));
 		if(!unmuteuser) return message.reply("Couldn't find user");
 		let muterole = message.guild.roles.cache.find(role => role.name === "Muterated");
