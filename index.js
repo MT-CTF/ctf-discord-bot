@@ -196,6 +196,21 @@ client.on("message", message => {
 			.addField(prefix + "help", "Shows the available commands", false)
 
 		return message.channel.send(helpEmbed);
+	} else if (command == "mute") {
+		let muteuser = message.guild.member(message.mentions.users.first() || message.guild.members.get(args[0]));
+		if(!muteuser) return message.reply("Couldn't find user");
+		if(muteuser.hasPermission("KICK_MEMBERS")) return message.reply("Can't mute them, the user you are trying to mute is a staff member!");
+		let muterole = message.guild.roles.cache.find(role => role.name === "Muterated");
+		
+		(muteuser.roles.add(muterole.id));
+		message.reply(`<@${muteuser.id}> has been muted`);
+	} else if (command == "unmute") {
+		let unmuteuser = message.guild.member(message.mentions.users.first() || message.guild.members.get(args[0]));
+		if(!unmuteuser) return message.reply("Couldn't find user");
+		let muterole = message.guild.roles.cache.find(role => role.name === "Muterated");
+
+		(unmuteuser.roles.remove(muterole.id));
+		message.reply(`<@${unmuteuser.id}> has been unmuted`);
 	}
 });
 
