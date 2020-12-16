@@ -194,6 +194,8 @@ client.on("message", message => {
 			.addField(prefix + "leaders", "Shows the top 60 leaderboard or links to the dedicated channel for it", false)
 			.addField(prefix + "oldleaders", "Shows old top 60 leaderboard", false)
 			.addField(prefix + "help", "Shows the available commands", false)
+			.addField(prefix + "mute <@username>", "Mutes a user", false)
+			.addField(Prefix + "unmute <@username>", "Unmutes a user", false)
 
 		return message.channel.send(helpEmbed);
 	} else if (command == "mute") {
