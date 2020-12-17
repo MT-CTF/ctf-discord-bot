@@ -231,9 +231,9 @@ client.on("message", message => {
 		if (!message.member.hasPermission("KICK_MEMBERS"))
 			return message.reply("You dont have the permission to run this command");
 
-		STAFF_MESSAGES.push(`<${message.member.user.username}@Discord> ${message.content.slice(prefix.length).trim()}`)
+		STAFF_MESSAGES.push(`<${message.member.user.username}@Discord> ${message.content.slice(prefix.length).trim()}`);
 
-		message.reply("Staff channel message sent")
+		message.reply("Staff channel message sent");
 	}
 });
 
@@ -241,14 +241,17 @@ client.login(process.env.TOKEN);
 
 var http = require('http');
 http.createServer(function (req, res) {
-	if (STAFF_MESSAGES.length > 0) {
+	if (req.method == "GET" && STAFF_MESSAGES.length > 0) {
 		res.writeHead(200, {'Content-Type': 'text/plain'});
-		console.log("Relaying staff messages: " + STAFF_MESSAGES.join("-|-"))
+		console.log("Relaying staff messages: " + STAFF_MESSAGES.join("-|-"));
 		res.write(JSON.stringify(STAFF_MESSAGES));
-		STAFF_MESSAGES = []
-		res.end();
-	} else {
-		res.writeHead(200)
-		res.end()
-	}
+		STAFF_MESSAGES = [];
+	} /* else if (req.method == "PUT") {
+		req.on("data", (chunk) => {
+			console.log(chunk.toString());
+		});
+	} */
+
+	res.writeHead(200);
+	res.end();
 }).listen(31337);
