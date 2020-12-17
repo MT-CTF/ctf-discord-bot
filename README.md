@@ -8,11 +8,11 @@ License: MIT
 
 * Show rank stats embed for a player.
   * `!rank` - Stats for player with the Discord user's username or nickname.
-  * `!rank username` - Stats for player `username`.  
+  * `!rank username` - Stats for player `username`.
   * `!oldrank` - Old stats for player with the Discord user's username or nickname.
   * `!oldrank username` - Old stats for player `username`.
 * Posts leaderboard to a channel, editing existing messages.
-  
+
 ## Usage
 
 * Create Discord bot and application using the [Discord Developer Portal](https://discord.com/developers/applications/),
@@ -25,3 +25,7 @@ License: MIT
   * `STATS` - Path to stats file, found in `world/ctf/mod_storage/ctf_stats`.
   * `OLD_STATS` - Path to old stats file (!oldrank)
   * `TOKEN` - Discord bot token, get from bot page in Discord Developer Portal.
+
+## Other
+
+You can grab messages sent with !st via Minetest. See https://github.com/MT-CTF/servermods/blob/master/server_chat/init.lua#L77 for an example

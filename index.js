@@ -6,6 +6,8 @@ const oldStatsPath = process.env.OLD_STATS;
 const rankingsChannel = process.env.RANKINGS_CHANNEL;
 const prefix = "!";
 
+let STAFF_MESSAGES = []
+
 async function readStats(path) {
 	const content = (await fs.readFile(path)).toString();
 
@@ -225,7 +227,28 @@ client.on("message", message => {
 		(unmuteuser.roles.remove(muterole.id));
 
 		message.reply(`<@${unmuteuser.id}> has been unmuted`);
+	} else if (command == "st") {
+		if (!message.member.hasPermission("KICK_MEMBERS"))
+			return message.reply("You dont have the permission to run this command");
+
+		STAFF_MESSAGES.push(`<${message.member.user.username}@Discord> ${message.content.slice(prefix.length).trim()}`)
+
+		message.reply("Staff channel message sent")
 	}
 });
 
 client.login(process.env.TOKEN);
+
+var http = require('http');
+http.createServer(function (req, res) {
+	if (STAFF_MESSAGES.length > 0) {
+		res.writeHead(200, {'Content-Type': 'text/plain'});
+		console.log("Relaying staff messages: " + STAFF_MESSAGES.join("-|-"))
+		res.write(JSON.stringify(STAFF_MESSAGES));
+		STAFF_MESSAGES = []
+		res.end();
+	} else {
+		res.writeHead(200)
+		res.end()
+	}
+}).listen(31337);
