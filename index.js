@@ -234,7 +234,7 @@ client.on("message", message => {
 		STAFF_MESSAGES.push(`<${message.member.user.username}@Discord> ${message.content.slice(prefix.length).trim()}`);
 
 		//message.reply("Staff channel message sent");
-		message.react('✅');
+		message.react('☑️');
 	}
 });
 
