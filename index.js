@@ -235,6 +235,10 @@ client.on("message", message => {
 
 		//message.reply("Staff channel message sent");
 		message.react('☑️');
+	} else if (command == "players") {
+		
+		PLAYERS.push(`<${message.member.user.username}@Discord> ${message.content.slice(prefix.length).trim()}`);
+		
 	}
 });
 
@@ -256,3 +260,13 @@ http.createServer(function (req, res) {
 	res.writeHead(200);
 	res.end();
 }).listen(31337);
+
+http.createServer(function (req, res) {
+	if (req.method == "GET" && PLAYERS.length > 0) {
+		res.writeHead(200, {'Content-Type': 'text/plain'});
+		res.write(JSON.stringify(PLAYERS));
+		PLAYERS = [];
+	}
+	res.writeHead(200);
+	res.end();
+}).listen(31338);
