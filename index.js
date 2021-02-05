@@ -227,7 +227,7 @@ client.on("message", message => {
 		(unmuteuser.roles.remove(muterole.id));
 
 		message.reply(`<@${unmuteuser.id}> has been unmuted`);
-	} else if (command == "st") {
+	} else if (command == "st" || command == "x") {
 		if (!message.member.hasPermission("KICK_MEMBERS"))
 			return message.reply("You dont have the permission to run this command");
 
