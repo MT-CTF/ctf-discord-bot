@@ -238,6 +238,23 @@ client.on("message", message => {
 	}
 });
 
+const badWords = ["fuck", "shit", "bellend", "bastard", "pussy", "dick"];
+
+client.on("message", msg => {
+  const message = msg.content.toLowerCase();
+  const isBad = badWords.map(x => {
+    if (message.includes(x)) {
+      msg.author.send("**No Swearing!**");
+      return true;
+    }
+    return false;
+  });
+  
+  if (isBad.includes(true)) {
+    msg.delete();
+  }
+});
+
 client.login(process.env.TOKEN);
 
 var http = require('http');
