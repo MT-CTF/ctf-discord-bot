@@ -250,7 +250,7 @@ client.on("message", msg => {
     return false;
   });
   
-  if (isBad.includes(true)) {
+  if ((isBad.includes(true)) && (msg.channel.type !== "dm")) {
     msg.delete();
   }
 });
