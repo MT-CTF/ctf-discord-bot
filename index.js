@@ -238,13 +238,13 @@ client.on("message", message => {
 	}
 });
 
-const badWords = ["fuck", "shit", "bellend", "bastard", "pussy", "dick"];
+const badWords = ["fuck","shit","pussy","bellend","bastard","dick","bitch","penis"];
 
 client.on("message", msg => {
   const message = msg.content.toLowerCase();
   const isBad = badWords.map(x => {
     if (message.includes(x)) {
-      msg.author.send("**No Swearing!**");
+      msg.author.send("**Please Be Family Friendly!**");
       return true;
     }
     return false;
