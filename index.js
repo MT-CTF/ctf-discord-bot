@@ -243,15 +243,12 @@ const badWords = ["fuck","shit","pussy","bellend","bastard","dick","bitch","peni
 client.on("message", msg => {
   const message = msg.content.toLowerCase();
   const isBad = badWords.map(x => {
-    if (message.includes(x)) {
-      msg.author.send("**Please Be Family Friendly!**");
-      return true;
-    }
-    return false;
+     return message.includes(x);
   });
   
   if ((isBad.includes(true)) && (msg.channel.type !== "dm")) {
     msg.delete();
+    msg.author.send("**Please Be Family Friendly!**");
   }
 });
 
