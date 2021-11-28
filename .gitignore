@@ -1,5 +1,4 @@
-start.sh
-ctf_stats
+package-lock.json
 
 # Created by https://www.toptal.com/developers/gitignore/api/linux,node
 # Edit at https://www.toptal.com/developers/gitignore?templates=linux,node

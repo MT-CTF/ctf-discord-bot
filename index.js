@@ -1,64 +1,26 @@
 const Discord = require("discord.js");
-const fs = require("fs/promises");
-const client = new Discord.Client();
-const statsPath = process.env.STATS;
-const oldStatsPath = process.env.OLD_STATS;
+const discordClient = new Discord.Client();
+const redisClient = require("redis").createClient();
 const rankingsChannel = process.env.RANKINGS_CHANNEL;
 const prefix = "!";
 
-let STAFF_MESSAGES = []
+let staffMessages = []
+let statsMap = null;
 
-async function readStats(path) {
-	const content = (await fs.readFile(path)).toString();
-
-	let list = {};
-	const raw = JSON.parse(JSON.parse(content).players);
-	for (let key in raw) {
-		list[key.toLowerCase()] = raw[key];
-	}
-
-	const orderedList = Object.values(list).sort((a, b) => b.score - a.score);
-	orderedList.forEach((stats, i) => {
-		stats.place = i + 1;
-	});
-
-	return [list, orderedList];
-}
-
-let oldStatsList = null;
-let statsList = null;
-
-async function updateStats() {
-	const ret = await readStats(statsPath);
-	statsList = ret[0];
-	updateRankingsChannel(ret[1]);
-}
-
-async function updateOldStats() {
-	oldStatsList = (await readStats(oldStatsPath))[0];
-}
-
-updateStats();
-updateOldStats();
-setInterval(updateStats, 30000);
-
-
-function formatLeaderboard(list) {
+function formatLeaderboard(list, mode) {
 	const rankingsEmbed = new Discord.MessageEmbed()
 		.setColor("#0099ff")
-		.setTitle("CTF Rankings")
+		.setTitle("CTF Rankings for mode " + mode);
 
-	const max = 60;
+	const max = Math.min(60, list.length);
 	for (var i = 0; i < max; i += 20) {
 		const from = i;
 		const to = i + 20
 
 		const newContent = list.slice(from, to)
 			.map(stats => {
-				let kd = stats.kills;
-				if (stats.deaths > 1) {
-					kd /= stats.deaths;
-				}
+				let kd = stats.kills || 0;
+				kd /= stats.deaths || 1;
 
 				stats.name = stats.name.replace("_", "\\_")
 
@@ -72,100 +34,158 @@ function formatLeaderboard(list) {
 	return rankingsEmbed;
 }
 
-async function updateRankingsChannel(list) {
+async function updateRankingsChannel(statsList) {
 	if (!rankingsChannel) {
 		return;
 	}
 
-	const channel = client.channels.cache.get(rankingsChannel);
+	const channel = discordClient.channels.cache.get(rankingsChannel);
 	if (!channel) {
 		return;
 	}
 
-	const rankingsEmbed = formatLeaderboard(list);
-	const messages = await channel.messages.fetch({ limit: 1 });
-	if (messages.size == 0) {
-		channel.send(rankingsEmbed);
-	} else {
-		const message = messages.first();
-		message.edit(rankingsEmbed);
+	let rankings = [];
+	for (const mode of [...statsList.keys()].sort()) {
+		rankings.push(formatLeaderboard(statsList.get(mode), mode));
 	}
+
+	const messages = await channel.messages.fetch({ limit: rankings.length });
+	if (messages.size < rankings.length) {
+		for (var i = 0; i < rankings.length; ++i) {
+			await channel.send(rankings[i]);
+		}
+	} else {
+		let it = messages.values()
+		for (var i = 0; i < rankings.length; ++i) {
+			await it.next().value.edit(rankings[rankings.length - i - 1]);
+		}
+	}
+}
+
+async function updateRankings() {
+	let statsList = new Map();
+	for (const key of await redisClient.keys("ctf_mode_*")) {
+		const [rawMode, name] = key.split("|", 2);
+		const mode = rawMode.substring(9).split("_").map((word) => {
+			return word[0].toUpperCase() + word.substring(1);
+		}).join(" ")
+
+		let stats = JSON.parse(await redisClient.get(key));
+
+		if (stats) {
+			stats["name"] = name;
+			stats.score = stats.score || 0;
+
+			if (statsList.get(mode) === undefined) {
+				statsList.set(mode, []);
+			}
+
+			statsList.get(mode).push(stats);
+		}
+	}
+
+	statsMap = new Map();
+
+	for (const [mode, stats] of statsList) {
+		stats.sort((a, b) => b.score - a.score);
+		stats.forEach((stat, i) => {
+			stat.place = i + 1;
+		});
+
+		statsMap.set(mode, new Map());
+		for (const stat of stats) {
+			statsMap.get(mode).set(stat.name.toLowerCase(), stat);
+		}
+	}
+
+	await updateRankingsChannel(statsList)
 }
 
 function ordinalSuffixOf(i) {
-    var j = i % 10, k = i % 100;
-    if (j == 1 && k != 11) {
-        return i + "st";
-    }
-    if (j == 2 && k != 12) {
-        return i + "nd";
-    }
-    if (j == 3 && k != 13) {
-        return i + "rd";
-    }
-    return i + "th";
+	var j = i % 10, k = i % 100;
+	if (j == 1 && k != 11) {
+		return i + "st";
+	}
+	if (j == 2 && k != 12) {
+		return i + "nd";
+	}
+	if (j == 3 && k != 13) {
+		return i + "rd";
+	}
+	return i + "th";
 }
 
-function formatRanking(stats) {
-	let kd = stats.kills;
-	if (stats.deaths > 1) {
-		kd /= stats.deaths;
-	}
+function normValue(v) {
+	return Math.round(v || 0);
+}
+
+function formatRanking(stats, mode) {
+	let kd = stats.kills || 0;
+	kd /= stats.deaths || 1;
 
 	const fields = [
-		{ name: "Kills", value: stats.kills, inline: true },
-		{ name: "Deaths", value: stats.deaths, inline: true },
+		{ name: "Kills", value: normValue(stats.kills), inline: true },
+		{ name: "Deaths", value: normValue(stats.deaths), inline: true },
 		{ name: "K/D", value: kd.toFixed(1), inline: true },
-		{ name: "Bounty kills", value: stats.bounty_kills, inline: true },
-		{ name: "Captures", value: stats.captures, inline: true },
-		{ name: "Attempts", value: stats.attempts, inline: true },
+		{ name: "Bounty kills", value: normValue(stats.bounty_kills), inline: true },
+		{ name: "Captures", value: normValue(stats.flag_captures), inline: true },
+		{ name: "HP healed", value: normValue(stats.hp_healed), inline: true },
 	]
 
 	return new Discord.MessageEmbed()
 		.setColor("#0099ff")
-		.setTitle(`${stats.name}, ${ordinalSuffixOf(stats.place)}`)
-		.setDescription(`${stats.name} is in ${ordinalSuffixOf(stats.place)} place, with ${Math.round(stats.score)} score.`)
+		.setTitle(`${stats.name}, ${ordinalSuffixOf(stats.place)}, ${mode}`)
+		.setDescription(`${stats.name} is in ${ordinalSuffixOf(stats.place)} place, with ${Math.round(stats.score)} score, ${mode} mode.`)
 		.addFields(fields)
 		.setTimestamp();
 }
 
-function handleRankRequest(rankList, message, command, args) {
-	if (!rankList) {
+function handleRankRequest(message, command, args) {
+	if (!statsMap) {
 		message.channel.send("Please wait, stats are still loading...");
 		return;
 	}
 
-	const username = message.author.username;
-	const nickname = message.member.nickname || username;
+	const username = message.author.username.trim();
+	const nickname = message.member.nickname ? message.member.nickname.trim() : username;
+	const name = args.length > 0 ? args[0].trim() : nickname;
 
-	let stats;
-	if (args.length == 0) {
-		stats = rankList[nickname.toLowerCase()] || rankList[username.toLowerCase()];
-		if (!stats) {
-			message.channel.send(`Unable to find ${nickname} or ${username}, please provide username explicitly like so: \`!rank username\``);
-			return;
+	let playerStats = [];
+
+	for (const mode of [...statsMap.keys()].sort()) {
+		let stat = statsMap.get(mode).get(name.toLowerCase());
+		if (!stat && args.length == 0) {
+			stat = statsMap.get(mode).get(username.toLowerCase());
 		}
-	} else {
-		stats = rankList[args[0].trim().toLowerCase()];
-		if (!stats) {
-			message.channel.send(`Unable to find user ${args[0]}`);
-			return;
+		if (stat) {
+			playerStats.push([stat, mode]);
 		}
 	}
 
-	message.channel.send(formatRanking(stats));
+	if (playerStats.length > 0) {
+		for (const [stat, mode] of playerStats) {
+			message.channel.send(formatRanking(stat, mode));
+		}
 
-	if (args.length > 0 && stats.name.toLowerCase() == nickname.toLowerCase()) {
-		message.channel.send(`_pst: you can just use \`!${command}\`_`);
+		if (args.length > 0 && (name.toLowerCase() == nickname.toLowerCase() || name.toLowerCase() == username.toLowerCase())) {
+			message.channel.send(`_pst: you can just use \`!${command}\`_`);
+		}
+	} else {
+		if (args.length > 0) {
+			message.channel.send(`Unable to find user ${name}`);
+		} else if (username.toLowerCase() != nickname.toLowerCase()) {
+			message.channel.send(`Unable to find ${nickname} or ${username}, please provide username explicitly like so: \`!rank username\``);
+		} else {
+			message.channel.send(`Unable to find ${nickname}, please provide username explicitly like so: \`!rank username\``);
+		}
 	}
 }
 
-
-client.on("ready", () => {
-	console.log(`Logged in as ${client.user.tag}!`);
+discordClient.on("ready", () => {
+	console.log(`Logged in as ${discordClient.user.tag}!`);
 });
 
-client.on("message", message => {
+discordClient.on("message", message => {
 	if (message.content[0] != prefix) {
 		return;
 	}
@@ -174,27 +194,17 @@ client.on("message", message => {
 	const command = args.shift().toLowerCase();
 
 	if (command == "rank" || command == "r" || command == "rankings") {
-		handleRankRequest(statsList, message, command, args);
-	} else if (command == "oldrank") {
-		handleRankRequest(oldStatsList, message, command, args);
-	} else if (command == "oldleaders") {
-		const orderedList = Object.values(oldStatsList).sort((a, b) => b.score - a.score);
-		message.channel.send(formatLeaderboard(orderedList));
+		handleRankRequest(message, command, args);
 	} else if (command == "leaders") {
 		if (rankingsChannel) {
 			message.channel.send(`<#${rankingsChannel}>`);
-		} else {
-			const orderedList = Object.values(statsList).sort((a, b) => b.score - a.score);
-			message.channel.send(formatLeaderboard(orderedList));
 		}
 	} else if (command == "help") {
 		const helpEmbed = new Discord.MessageEmbed()
 			.setTitle("Commands")
 			.setColor("#0000E5")
 			.addField(prefix + "rank", "Shows ingame rankings", false)
-			.addField(prefix + "oldrank", "Shows old rankings", false)
 			.addField(prefix + "leaders", "Shows the top 60 leaderboard or links to the dedicated channel for it", false)
-			.addField(prefix + "oldleaders", "Shows old top 60 leaderboard", false)
 			.addField(prefix + "help", "Shows the available commands", false)
 			.addField(prefix + "mute <@username>", "Mutes a user", false)
 			.addField(prefix + "unmute <@username>", "Unmutes a user", false)
@@ -227,32 +237,34 @@ client.on("message", message => {
 		(unmuteuser.roles.remove(muterole.id));
 
 		message.reply(`<@${unmuteuser.id}> has been unmuted`);
-	} else if (command == "st" || command == "x") {
+	} else if (command == "x") {
 		if (!message.member.hasPermission("KICK_MEMBERS"))
 			return message.reply("You dont have the permission to run this command");
 
-		STAFF_MESSAGES.push(`<${message.member.user.username}@Discord> ${message.content.slice(prefix.length).trim()}`);
+		staffMessages.push(`<${message.member.user.username}@Discord> ${message.content.substring(2).trim()}`);
 
-		//message.reply("Staff channel message sent");
 		message.react('☑️');
 	}
 });
 
-client.login(process.env.TOKEN);
+async function main() {
+	await discordClient.login(process.env.TOKEN);
+	await redisClient.connect();
 
-var http = require('http');
-http.createServer(function (req, res) {
-	if (req.method == "GET" && STAFF_MESSAGES.length > 0) {
-		res.writeHead(200, {'Content-Type': 'text/plain'});
-		console.log("Relaying staff messages: " + STAFF_MESSAGES.join("-|-"));
-		res.write(JSON.stringify(STAFF_MESSAGES));
-		STAFF_MESSAGES = [];
-	} /* else if (req.method == "PUT") {
-		req.on("data", (chunk) => {
-			console.log(chunk.toString());
-		});
-	} */
+	await updateRankings();
+	setInterval(updateRankings, 60000);
 
-	res.writeHead(200);
-	res.end();
-}).listen(31337);
+	var http = require('http');
+	http.createServer(function (req, res) {
+		if (req.method == "GET" && staffMessages.length > 0) {
+			res.writeHead(200, {'Content-Type': 'text/plain'});
+			console.log("Relaying staff messages: " + staffMessages.join("-|-"));
+			res.write(JSON.stringify(staffMessages));
+			staffMessages = [];
+		}
+
+		res.writeHead(200);
+		res.end();
+	}).listen(31337, '127.0.0.1');
+}
+main()
