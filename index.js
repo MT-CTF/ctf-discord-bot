@@ -9,6 +9,8 @@ const discordClient = new Discord.Client();
 
 const guildId = process.env.GUILD_ID;
 const rankingsChannel = process.env.RANKINGS_CHANNEL;
+const token = process.env.TOKEN;
+
 const prefix = "!";
 
 let staffMessages = []
@@ -255,7 +257,7 @@ discordClient.on("message", message => {
 });
 
 async function main() {
-	await discordClient.login(process.env.TOKEN);
+	await discordClient.login(token);
 	///await redisClient.connect();
 
 	//await updateRankings();
