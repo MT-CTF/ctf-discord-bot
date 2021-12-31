@@ -18,7 +18,8 @@
   },
   "homepage": "https://github.com/MT-CTF/ctf-discord-bot#readme",
   "dependencies": {
-    "discord.js": "^12.3.1",
+    "discord.js": "^13.5.0",
+	"@discordjs/builders": "^0.11.0",
     "redis": "^4.0.0-rc.4"
   }
 }

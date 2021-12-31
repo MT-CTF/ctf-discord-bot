@@ -1,6 +1,13 @@
 const Discord = require("discord.js");
+const { SlashCommandBuilder } = require('@discordjs/builders');
+
 const discordClient = new Discord.Client();
-const redisClient = require("redis").createClient();
+
+//TODO: enable redis server again
+
+//const redisClient = require("redis").createClient();
+
+const guildId = process.env.GUILD_ID;
 const rankingsChannel = process.env.RANKINGS_CHANNEL;
 const prefix = "!";
 
@@ -249,10 +256,10 @@ discordClient.on("message", message => {
 
 async function main() {
 	await discordClient.login(process.env.TOKEN);
-	await redisClient.connect();
+	///await redisClient.connect();
 
-	await updateRankings();
-	setInterval(updateRankings, 60000);
+	//await updateRankings();
+	//setInterval(updateRankings, 60000);
 
 	var http = require('http');
 	http.createServer(function (req, res) {
