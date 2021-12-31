@@ -196,8 +196,66 @@ function handleRankRequest(message, command, args) {
 	}
 }
 
+const error_embed = new Discord.MessageEmbed()
+	.setColor("RED")
+	.setDescription("You dont have the permission to run this command.")
+
+// commands definition
+
+const commands = [];
+
+//fixme
+commands.push(new SlashCommandBuilder()
+	.setName("rank")
+	.setDescription("Shows ingame rankings")
+);
+
+commands.push(new SlashCommandBuilder()
+	.setName("x")
+	.setDescription("Send messages on staff channel")
+	.addStringOption(option => option
+		.setName('message')
+		.setDescription('Enter message')
+		.setRequired(true)
+	)
+);
+
 discordClient.on("ready", () => {
 	console.log(`Logged in as ${discordClient.user.tag}!`);
+
+	const guild = client.guilds.resolve(guildId);
+
+	//push commands to server
+	guild.commands.set(commands).catch(console.log);
+});
+
+discordClient.on("interactionCreate", async(interaction) => {
+	if (!interaction.isCommand()) {
+		return
+	}
+
+	const {commandName, member, memberPermissions, options} = interaction
+
+	//handle commands
+	if (commandName === "x") {
+		if (!memberPermissions.has("KICK_MEMBERS", true)) {
+			return interaction.reply({
+				embeds: [error_embed],
+				ephemeral: true,
+			})
+		}
+
+		staffMessages.push(`<${member.user.username}@Discord> ${options.getString("message")}`);
+
+		interaction.reply({
+			embeds: [
+				new Discord.MessageEmbed()
+					.setColor("BLUE")
+					.setDescription(`**${member.user.username}**: ${options.getString("message")}`)
+			],
+			ephemeral: false,
+		})
+	}
 });
 
 discordClient.on("message", message => {
