@@ -223,7 +223,7 @@ commands.push(new SlashCommandBuilder()
 discordClient.on("ready", () => {
 	console.log(`Logged in as ${discordClient.user.tag}!`);
 
-	const guild = client.guilds.resolve(guildId);
+	const guild = discordClient.guilds.resolve(guildId);
 
 	//push commands to server
 	guild.commands.set(commands).catch(console.log);
