@@ -1,7 +1,13 @@
 const Discord = require("discord.js");
 const { SlashCommandBuilder } = require('@discordjs/builders');
 
-const discordClient = new Discord.Client();
+const discordClient = new Discord.Client({
+	intents: [
+		Discord.Intents.FLAGS.GUILDS,
+		Discord.Intents.FLAGS.GUILD_MESSAGES,
+		Discord.Intents.FLAGS.GUILD_INTEGRATIONS,
+	]
+});
 
 //TODO: enable redis server again
 
