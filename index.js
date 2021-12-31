@@ -296,6 +296,7 @@ discordClient.on("interactionCreate", async(interaction) => {
 	}
 });
 
+/*
 discordClient.on("message", message => {
 	if (message.content[0] != prefix) {
 		return;
@@ -357,6 +358,7 @@ discordClient.on("message", message => {
 		message.react('☑️');
 	}
 });
+*/
 
 async function main() {
 	await discordClient.login(token);
