@@ -220,6 +220,26 @@ commands.push(new SlashCommandBuilder()
 	)
 );
 
+commands.push(new SlashCommandBuilder()
+	.setName('mute')
+	.setDescription('Mutes a user')
+	.addUserOption(option => option
+		.setName("user")
+		.setDescription("User to mute")
+		.setRequired(true)
+	)
+);
+
+commands.push(new SlashCommandBuilder()
+	.setName('unmute')
+	.setDescription('Unmutes a user')
+	.addUserOption(option => option
+		.setName("user")
+		.setDescription("User to unmute")
+		.setRequired(true)
+	)
+);
+
 discordClient.on("ready", () => {
 	console.log(`Logged in as ${discordClient.user.tag}!`);
 
@@ -252,6 +272,24 @@ discordClient.on("interactionCreate", async(interaction) => {
 				new Discord.MessageEmbed()
 					.setColor("BLUE")
 					.setDescription(`**${member.user.username}**: ${options.getString("message")}`)
+			],
+			ephemeral: false,
+		})
+	} else if (commandName === "mute") {
+		const muted_member = options.getMember("user");
+		if (!memberPermissions.has("KICK_MEMBERS", true)) {
+			return interaction.reply({
+				embeds: [error_embed],
+				ephemeral: true,
+			})
+		}
+		let muterole = interaction.guild.roles.cache.find(role => role.name === "Muterated");
+		muted_member.roles.add(muterole.id);
+		interaction.reply({
+			embeds: [
+				new Discord.MessageEmbed()
+					.setColor("BLUE")
+					.setDescription(`**${muted_member.user.username}** has been muted.`)
 			],
 			ephemeral: false,
 		})
