@@ -185,57 +185,6 @@ function formatRanking(stats, mode) {
 		.setTimestamp()
 }
 
-function handleRankRequest(message, command, args) {
-	if (!statsMap) {
-		message.channel.send("Please wait, stats are still loading...")
-		return
-	}
-
-	const username = message.author.username.trim()
-	const nickname = message.member.nickname
-		? message.member.nickname.trim()
-		: username
-	const name = args.length > 0 ? args[0].trim() : nickname
-
-	let playerStats = []
-
-	for (const mode of [...statsMap.keys()].sort()) {
-		let stat = statsMap.get(mode).get(name.toLowerCase())
-		if (!stat && args.length == 0) {
-			stat = statsMap.get(mode).get(username.toLowerCase())
-		}
-		if (stat) {
-			playerStats.push([stat, mode])
-		}
-	}
-
-	if (playerStats.length > 0) {
-		for (const [stat, mode] of playerStats) {
-			message.channel.send(formatRanking(stat, mode))
-		}
-
-		if (
-			args.length > 0 &&
-			(name.toLowerCase() == nickname.toLowerCase() ||
-				name.toLowerCase() == username.toLowerCase())
-		) {
-			message.channel.send(`_pst: you can just use \`!${command}\`_`)
-		}
-	} else {
-		if (args.length > 0) {
-			message.channel.send(`Unable to find user ${name}`)
-		} else if (username.toLowerCase() != nickname.toLowerCase()) {
-			message.channel.send(
-				`Unable to find ${nickname} or ${username}, please provide username explicitly like so: \`!rank username\``
-			)
-		} else {
-			message.channel.send(
-				`Unable to find ${nickname}, please provide username explicitly like so: \`!rank username\``
-			)
-		}
-	}
-}
-
 const error_embed_admin_mute = new Discord.EmbedBuilder()
 	.setColor(Discord.Colors.Red)
 	.setDescription("The user you are trying to mute is a staff member!")
