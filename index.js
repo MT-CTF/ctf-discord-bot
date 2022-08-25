@@ -11,9 +11,7 @@ const discordClient = new Discord.Client({
 	],
 })
 
-//TODO: enable redis server again
-
-//const redisClient = redis.createClient()
+const redisClient = redis.createClient({ url: "redis://localhost:6380" })
 
 const guildId = process.env.GUILD_ID
 const rankingsChannel = process.env.RANKINGS_CHANNEL
@@ -23,6 +21,7 @@ const prefix = "!"
 
 let staffMessages = []
 let statsMap = null
+let statsPlayers = null
 
 function formatLeaderboard(list, mode) {
 	const rankingsEmbed = new Discord.EmbedBuilder()
@@ -48,7 +47,9 @@ function formatLeaderboard(list, mode) {
 			})
 			.join("\n")
 
-		rankingsEmbed.addField(`__Top ${from + 1} - ${to}__`, newContent, true)
+		rankingsEmbed.addFields([
+			{ name: `__Top ${from + 1} - ${to}__`, value: newContent },
+		])
 	}
 
 	return rankingsEmbed
@@ -83,7 +84,9 @@ async function updateRankingsChannel(statsList) {
 }
 
 async function updateRankings() {
+	console.log("updateRankings called")
 	let statsList = new Map()
+	statsPlayers = []
 	for (const key of await redisClient.keys("ctf_mode_*")) {
 		const [rawMode, name] = key.split("|", 2)
 		const mode = rawMode
@@ -106,6 +109,7 @@ async function updateRankings() {
 
 			statsList.get(mode).push(stats)
 		}
+		statsPlayers.push(name)
 	}
 
 	statsMap = new Map()
@@ -122,7 +126,8 @@ async function updateRankings() {
 		}
 	}
 
-	await updateRankingsChannel(statsList)
+	//await updateRankingsChannel(statsList)
+	statsPlayers.sort()
 }
 
 function ordinalSuffixOf(i) {
@@ -149,16 +154,24 @@ function formatRanking(stats, mode) {
 	kd /= stats.deaths || 1
 
 	const fields = [
-		{ name: "Kills", value: normValue(stats.kills), inline: true },
-		{ name: "Deaths", value: normValue(stats.deaths), inline: true },
+		{ name: "Kills", value: normValue(stats.kills).toString(), inline: true },
+		{ name: "Deaths", value: normValue(stats.deaths).toString(), inline: true },
 		{ name: "K/D", value: kd.toFixed(1), inline: true },
 		{
 			name: "Bounty kills",
-			value: normValue(stats.bounty_kills),
+			value: normValue(stats.bounty_kills).toString(),
 			inline: true,
 		},
-		{ name: "Captures", value: normValue(stats.flag_captures), inline: true },
-		{ name: "HP healed", value: normValue(stats.hp_healed), inline: true },
+		{
+			name: "Captures",
+			value: normValue(stats.flag_captures).toString(),
+			inline: true,
+		},
+		{
+			name: "HP healed",
+			value: normValue(stats.hp_healed).toString(),
+			inline: true,
+		},
 	]
 
 	return new Discord.EmbedBuilder()
@@ -169,7 +182,7 @@ function formatRanking(stats, mode) {
 				stats.place
 			)} place, with ${Math.round(stats.score)} score, ${mode} mode.`
 		)
-		.addFields(fields)
+		.setFields(fields)
 		.setTimestamp()
 }
 
@@ -224,17 +237,25 @@ function handleRankRequest(message, command, args) {
 	}
 }
 
-const error_embed_permission = new Discord.EmbedBuilder()
-	.setColor(Discord.Colors.Red)
-	.setDescription("You dont have the permission to run this command.")
-
 const error_embed_admin_mute = new Discord.EmbedBuilder()
 	.setColor(Discord.Colors.Red)
 	.setDescription("The user you are trying to mute is a staff member!")
 
-const error_embed_admin_unmute = new Discord.EmbedBuilder()
+const error_embed_bot_mute = new Discord.EmbedBuilder()
 	.setColor(Discord.Colors.Red)
-	.setDescription("The user you are trying to mute is a staff member!")
+	.setDescription("No. You can't do that.")
+
+const error_embed_stats_unavaillable = new Discord.EmbedBuilder()
+	.setColor(Discord.Colors.Red)
+	.setDescription("Please wait, stats are still loading...")
+
+let embed_leaders = new Discord.EmbedBuilder().setColor(Discord.Colors.Blue)
+if (rankingsChannel) {
+	embed_leaders = embed_leaders.setDescription(`Checkout <#${rankingsChannel}>`)
+} else {
+	embed_leaders = embed_leaders.setDescription("There is no rankings channel")
+}
+
 // commands definition
 
 const commands = []
@@ -244,12 +265,19 @@ commands.push(
 	new Discord.SlashCommandBuilder()
 		.setName("rank")
 		.setDescription("Shows ingame rankings")
+		.addStringOption((option) =>
+			option
+				.setName("player")
+				.setDescription("The player")
+				.setAutocomplete(true)
+		)
 )
 
 commands.push(
 	new Discord.SlashCommandBuilder()
 		.setName("x")
 		.setDescription("Send messages on staff channel")
+		.setDefaultMemberPermissions(Discord.PermissionsBitField.Flags.KickMembers)
 		.addStringOption((option) =>
 			option
 				.setName("message")
@@ -260,8 +288,17 @@ commands.push(
 
 commands.push(
 	new Discord.SlashCommandBuilder()
+		.setName("leaders")
+		.setDescription(
+			"Shows the top 60 leaderboard or links to the dedicated channel for it"
+		)
+)
+
+commands.push(
+	new Discord.SlashCommandBuilder()
 		.setName("mute")
 		.setDescription("Mutes a user")
+		.setDefaultMemberPermissions(Discord.PermissionsBitField.Flags.KickMembers)
 		.addUserOption((option) =>
 			option.setName("user").setDescription("User to mute").setRequired(true)
 		)
@@ -271,6 +308,7 @@ commands.push(
 	new Discord.SlashCommandBuilder()
 		.setName("unmute")
 		.setDescription("Unmutes a user")
+		.setDefaultMemberPermissions(Discord.PermissionsBitField.Flags.KickMembers)
 		.addUserOption((option) =>
 			option.setName("user").setDescription("User to unmute").setRequired(true)
 		)
@@ -286,184 +324,189 @@ discordClient.on("ready", () => {
 })
 
 discordClient.on("interactionCreate", async (interaction) => {
-	if (!interaction.isCommand()) {
-		return
-	}
-
-	const { commandName, member, memberPermissions, options } = interaction
-
-	//handle commands
-	if (commandName === "x") {
-		if (
-			!memberPermissions.has(
-				Discord.PermissionsBitField.Flags.KickMembers,
-				true
+	if (
+		interaction.type === Discord.InteractionType.ApplicationCommandAutocomplete
+	) {
+		if (interaction.commandName === "rank") {
+			if (!statsPlayers) {
+				interaction.respond([])
+				return
+			}
+			const focusedValue = interaction.options.getFocused().toLowerCase()
+			const filtered = statsPlayers.filter((p) =>
+				p.toLowerCase().startsWith(focusedValue)
 			)
-		) {
-			return interaction.reply({
-				embeds: [error_embed_permission],
-				ephemeral: true,
-			})
+			await interaction.respond(
+				filtered.slice(0, 10).map((p) => ({ name: p, value: p }))
+			)
 		}
+	} else if (interaction.isCommand()) {
+		const { commandName, member, memberPermissions, options } = interaction
 
-		staffMessages.push(
-			`<${member.user.username}@Discord> ${options.getString("message")}`
-		)
+		//handle commands
+		if (commandName === "rank") {
+			if (!statsMap) {
+				interaction.reply({
+					embeds: [error_embed_stats_unavaillable],
+					ephemeral: true,
+				})
+			}
 
-		interaction.reply({
-			embeds: [
-				new Discord.EmbedBuilder()
-					.setColor(Discord.Colors.Blue)
-					.setDescription(
-						`**${member.user.username}**: ${options.getString("message")}`
-					),
-			],
-			ephemeral: false,
-		})
-	} else if (commandName === "mute") {
-		const muted_member = options.getMember("user")
+			const option_player = options.getString("player")
+			if (option_player) {
+				let playerStats = []
 
-		if (
-			!memberPermissions.has(
-				Discord.PermissionsBitField.Flags.KickMembers,
-				true
+				for (const mode of [...statsMap.keys()].sort()) {
+					let stat = statsMap.get(mode).get(option_player.toLowerCase())
+					if (stat) {
+						playerStats.push([stat, mode])
+					}
+				}
+
+				if (playerStats.length > 0) {
+					let embeds = []
+					for (const [stat, mode] of playerStats) {
+						embeds.push(formatRanking(stat, mode))
+						interaction.reply({ embeds: embeds, ephemeral: false })
+					}
+				} else {
+					interaction.reply({
+						embeds: [
+							new Discord.EmbedBuilder()
+								.setColor(Discord.Colors.Red)
+								.setDescription(`Unable to find ${option_player}.`),
+						],
+						ephemeral: false,
+					})
+				}
+			} else {
+				const username = member.user.username.trim()
+				const nickname = member.nickname
+				const name = nickname ? nickname : username
+
+				let playerStats = []
+
+				for (const mode of [...statsMap.keys()].sort()) {
+					let stat = statsMap.get(mode).get(name.toLowerCase())
+					if (!stat) {
+						stat = statsMap.get(mode).get(username.toLowerCase())
+					}
+					if (stat) {
+						playerStats.push([stat, mode])
+					}
+				}
+
+				if (playerStats.length > 0) {
+					let embeds = []
+					for (const [stat, mode] of playerStats) {
+						embeds.push(formatRanking(stat, mode))
+						interaction.reply({ embeds: embeds, ephemeral: false })
+					}
+				} else {
+					if (username.toLowerCase() != name.toLowerCase()) {
+						interaction.reply({
+							embeds: [
+								new Discord.EmbedBuilder()
+									.setColor(Discord.Colors.Red)
+									.setDescription(
+										`Unable to find ${nickname} or ${username}, please provide username explicitly.`
+									),
+							],
+							ephemeral: false,
+						})
+					} else {
+						interaction.reply({
+							embeds: [
+								new Discord.EmbedBuilder()
+									.setColor(Discord.Colors.Red)
+									.setDescription(
+										`Unable to find ${nickname}, please provide username explicitly.`
+									),
+							],
+							ephemeral: false,
+						})
+					}
+				}
+			}
+		} else if (commandName === "x") {
+			staffMessages.push(
+				`<${member.user.username}@Discord> ${options.getString("message")}`
 			)
-		) {
-			return interaction.reply({
-				embeds: [error_embed_permission],
-				ephemeral: true,
-			})
-		}
 
-		let muterole = interaction.guild.roles.cache.find(
-			(role) => role.name === "Muterated"
-		)
-
-		if (
-			muted_member.permissions.has(
-				Discord.PermissionsBitField.Flags.KickMembers
-			)
-		) {
-			interaction.reply({
-				embeds: [error_embed_admin_mute],
-				ephemeral: true,
-			})
-		} else {
-			await muted_member.roles.add(muterole.id)
 			interaction.reply({
 				embeds: [
 					new Discord.EmbedBuilder()
 						.setColor(Discord.Colors.Blue)
 						.setDescription(
-							`**${muted_member.user.username}** has been muted.`
+							`**${member.user.username}**: ${options.getString("message")}`
+						),
+				],
+				ephemeral: false,
+			})
+		} else if (commandName === "leaders") {
+			await interaction.reply({ embeds: [embed_leaders], ephemeral: true })
+		} else if (commandName === "mute") {
+			const muted_member = options.getMember("user")
+
+			let muterole = interaction.guild.roles.cache.find(
+				(role) => role.name === "Muterated"
+			)
+
+			if (discordClient.user.id === muted_member.user.id) {
+				interaction.reply({
+					embeds: [error_embed_bot_mute],
+					ephemeral: true,
+				})
+			} else if (
+				muted_member.permissions.has(
+					Discord.PermissionsBitField.Flags.KickMembers
+				)
+			) {
+				interaction.reply({
+					embeds: [error_embed_admin_mute],
+					ephemeral: true,
+				})
+			} else {
+				await muted_member.roles.add(muterole.id)
+				interaction.reply({
+					embeds: [
+						new Discord.EmbedBuilder()
+							.setColor(Discord.Colors.Blue)
+							.setDescription(
+								`**${muted_member.user.username}** has been muted.`
+							),
+					],
+					ephemeral: false,
+				})
+			}
+		} else if (commandName === "unmute") {
+			const muted_member = options.getMember("user")
+
+			let muterole = interaction.guild.roles.cache.find(
+				(role) => role.name === "Muterated"
+			)
+
+			await muted_member.roles.remove(muterole.id)
+			interaction.reply({
+				embeds: [
+					new Discord.EmbedBuilder()
+						.setColor(Discord.Colors.Blue)
+						.setDescription(
+							`**${muted_member.user.username}** has been unmuted.`
 						),
 				],
 				ephemeral: false,
 			})
 		}
-	} else if (commandName === "unmute") {
-		const muted_member = options.getMember("user")
-
-		if (
-			!memberPermissions.has(
-				Discord.PermissionsBitField.Flags.KickMembers,
-				true
-			)
-		) {
-			return interaction.reply({
-				embeds: [error_embed_permission],
-				ephemeral: true,
-			})
-		}
-
-		let muterole = interaction.guild.roles.cache.find(
-			(role) => role.name === "Muterated"
-		)
-
-		await muted_member.roles.remove(muterole.id)
-		interaction.reply({
-			embeds: [
-				new Discord.EmbedBuilder()
-					.setColor(Discord.Colors.Blue)
-					.setDescription(
-						`**${muted_member.user.username}** has been unmuted.`
-					),
-			],
-			ephemeral: false,
-		})
 	}
 })
 
-/*
-discordClient.on("message", message => {
-	if (message.content[0] != prefix) {
-		return;
-	}
-
-	const args = message.content.slice(prefix.length).trim().split(" ");
-	const command = args.shift().toLowerCase();
-
-	if (command == "rank" || command == "r" || command == "rankings") {
-		handleRankRequest(message, command, args);
-	} else if (command == "leaders") {
-		if (rankingsChannel) {
-			message.channel.send(`<#${rankingsChannel}>`);
-		}
-	} else if (command == "help") {
-		const helpEmbed = new Discord.EmbedBuilder()
-			.setTitle("Commands")
-			.setColor("#0000E5")
-			.addField(prefix + "rank", "Shows ingame rankings", false)
-			.addField(prefix + "leaders", "Shows the top 60 leaderboard or links to the dedicated channel for it", false)
-			.addField(prefix + "help", "Shows the available commands", false)
-			.addField(prefix + "mute <@username>", "Mutes a user", false)
-			.addField(prefix + "unmute <@username>", "Unmutes a user", false)
-
-		return message.channel.send(helpEmbed);
-	} else if (command == "mute") {
-		if (!message.member.hasPermission("KICK_MEMBERS"))
-			return message.reply("You dont have the permission to run this command");
-
-		let muteuser = message.guild.member(message.mentions.users.first() || message.guild.members.get(args[0]));
-		if (!muteuser)
-			return message.reply("Couldn't find user");
-
-		if (muteuser.hasPermission("KICK_MEMBERS"))
-			return message.reply("Can't mute them, the user you are trying to mute is a staff member!");
-
-		let muterole = message.guild.roles.cache.find(role => role.name === "Muterated");
-		muteuser.roles.add(muterole.id);
-
-		message.reply(`<@${muteuser.id}> has been muted`);
-	} else if (command == "unmute") {
-		if (!message.member.hasPermission("KICK_MEMBERS"))
-			return message.reply("You dont have the permission to run this command");
-
-		let unmuteuser = message.guild.member(message.mentions.users.first() || message.guild.members.get(args[0]));
-		if (!unmuteuser)
-			return message.reply("Couldn't find user");
-
-		let muterole = message.guild.roles.cache.find(role => role.name === "Muterated");
-		(unmuteuser.roles.remove(muterole.id));
-
-		message.reply(`<@${unmuteuser.id}> has been unmuted`);
-	} else if (command == "x") {
-		if (!message.member.hasPermission("KICK_MEMBERS"))
-			return message.reply("You dont have the permission to run this command");
-
-		staffMessages.push(`<${message.member.user.username}@Discord> ${message.content.substring(2).trim()}`);
-
-		message.react('☑️');
-	}
-});
-*/
-
 async function main() {
 	await discordClient.login(token)
-	///await redisClient.connect();
+	await redisClient.connect()
 
-	//await updateRankings();
-	//setInterval(updateRankings, 60000);
+	await updateRankings()
+	setInterval(updateRankings, 6000)
 
 	http
 		.createServer(function (req, res) {
