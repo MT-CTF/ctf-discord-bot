@@ -84,7 +84,6 @@ async function updateRankingsChannel(statsList) {
 }
 
 async function updateRankings() {
-	console.log("updateRankings called")
 	let statsList = new Map()
 	statsPlayers = []
 	for (const key of await redisClient.keys("ctf_mode_*")) {
