@@ -284,7 +284,7 @@ discordClient.on("interactionCreate", async(interaction) => {
 			})
 		}
 		let muterole = interaction.guild.roles.cache.find(role => role.name === "Muterated");
-		muted_member.roles.add(muterole.id);
+		await muted_member.roles.add(muterole.id);
 		interaction.reply({
 			embeds: [
 				new Discord.MessageEmbed()
