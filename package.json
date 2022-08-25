@@ -1,25 +1,26 @@
 {
-  "name": "ctf-discord-bot",
-  "version": "0.1.0",
-  "description": "A bot to manage roles and such on Discord",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/MT-CTF/ctf-discord-bot.git"
-  },
-  "author": "rubenwardy",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/MT-CTF/ctf-discord-bot/issues"
-  },
-  "homepage": "https://github.com/MT-CTF/ctf-discord-bot#readme",
-  "dependencies": {
-    "discord.js": "^13.5.0",
-	"@discordjs/builders": "^0.11.0",
-    "redis": "^4.0.0-rc.4"
-  }
+	"name": "ctf-discord-bot",
+	"version": "0.1.0",
+	"description": "A bot to manage roles and such on Discord",
+	"type": "module",
+	"main": "index.js",
+	"scripts": {
+		"start": "node index.js",
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/MT-CTF/ctf-discord-bot.git"
+	},
+	"author": "rubenwardy",
+	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/MT-CTF/ctf-discord-bot/issues"
+	},
+	"homepage": "https://github.com/MT-CTF/ctf-discord-bot#readme",
+	"dependencies": {
+		"discord.js": "^14.3.0",
+		"dotenv": "^16.0.1",
+		"redis": "^4.0.0-rc.4"
+	}
 }

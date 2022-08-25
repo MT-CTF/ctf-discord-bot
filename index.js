@@ -1,115 +1,124 @@
-const Discord = require("discord.js");
-const { SlashCommandBuilder } = require('@discordjs/builders');
+import Discord from "discord.js"
+import redis from "redis"
+import http from "http"
+import "dotenv/config"
 
 const discordClient = new Discord.Client({
 	intents: [
-		Discord.Intents.FLAGS.GUILDS,
-		Discord.Intents.FLAGS.GUILD_MESSAGES,
-		Discord.Intents.FLAGS.GUILD_INTEGRATIONS,
-	]
-});
+		Discord.GatewayIntentBits.Guilds,
+		Discord.GatewayIntentBits.GuildMessages,
+		Discord.GatewayIntentBits.GuildIntegrations,
+	],
+})
 
 //TODO: enable redis server again
 
-//const redisClient = require("redis").createClient();
+//const redisClient = redis.createClient()
 
-const guildId = process.env.GUILD_ID;
-const rankingsChannel = process.env.RANKINGS_CHANNEL;
-const token = process.env.TOKEN;
+const guildId = process.env.GUILD_ID
+const rankingsChannel = process.env.RANKINGS_CHANNEL
+const token = process.env.TOKEN
 
-const prefix = "!";
+const prefix = "!"
 
 let staffMessages = []
-let statsMap = null;
+let statsMap = null
 
 function formatLeaderboard(list, mode) {
-	const rankingsEmbed = new Discord.MessageEmbed()
+	const rankingsEmbed = new Discord.EmbedBuilder()
 		.setColor("#0099ff")
-		.setTitle("CTF Rankings for mode " + mode);
+		.setTitle("CTF Rankings for mode " + mode)
 
-	const max = Math.min(60, list.length);
+	const max = Math.min(60, list.length)
 	for (var i = 0; i < max; i += 20) {
-		const from = i;
+		const from = i
 		const to = i + 20
 
-		const newContent = list.slice(from, to)
-			.map(stats => {
-				let kd = stats.kills || 0;
-				kd /= stats.deaths || 1;
+		const newContent = list
+			.slice(from, to)
+			.map((stats) => {
+				let kd = stats.kills || 0
+				kd /= stats.deaths || 1
 
 				stats.name = stats.name.replace("_", "\\_")
 
-				return `**${stats.place}. ${stats.name}**\nK/D: ${kd.toFixed(1)} - Score: *${Math.round(stats.score)}*`;
+				return `**${stats.place}. ${stats.name}**\nK/D: ${kd.toFixed(
+					1
+				)} - Score: *${Math.round(stats.score)}*`
 			})
-			.join("\n");
+			.join("\n")
 
-		rankingsEmbed.addField(`__Top ${from+1} - ${to}__`, newContent, true)
+		rankingsEmbed.addField(`__Top ${from + 1} - ${to}__`, newContent, true)
 	}
 
-	return rankingsEmbed;
+	return rankingsEmbed
 }
 
 async function updateRankingsChannel(statsList) {
 	if (!rankingsChannel) {
-		return;
+		return
 	}
 
-	const channel = discordClient.channels.cache.get(rankingsChannel);
+	const channel = discordClient.channels.cache.get(rankingsChannel)
 	if (!channel) {
-		return;
+		return
 	}
 
-	let rankings = [];
+	let rankings = []
 	for (const mode of [...statsList.keys()].sort()) {
-		rankings.push(formatLeaderboard(statsList.get(mode), mode));
+		rankings.push(formatLeaderboard(statsList.get(mode), mode))
 	}
 
-	const messages = await channel.messages.fetch({ limit: rankings.length });
+	const messages = await channel.messages.fetch({ limit: rankings.length })
 	if (messages.size < rankings.length) {
 		for (var i = 0; i < rankings.length; ++i) {
-			await channel.send(rankings[i]);
+			await channel.send(rankings[i])
 		}
 	} else {
 		let it = messages.values()
 		for (var i = 0; i < rankings.length; ++i) {
-			await it.next().value.edit(rankings[rankings.length - i - 1]);
+			await it.next().value.edit(rankings[rankings.length - i - 1])
 		}
 	}
 }
 
 async function updateRankings() {
-	let statsList = new Map();
+	let statsList = new Map()
 	for (const key of await redisClient.keys("ctf_mode_*")) {
-		const [rawMode, name] = key.split("|", 2);
-		const mode = rawMode.substring(9).split("_").map((word) => {
-			return word[0].toUpperCase() + word.substring(1);
-		}).join(" ")
+		const [rawMode, name] = key.split("|", 2)
+		const mode = rawMode
+			.substring(9)
+			.split("_")
+			.map((word) => {
+				return word[0].toUpperCase() + word.substring(1)
+			})
+			.join(" ")
 
-		let stats = JSON.parse(await redisClient.get(key));
+		let stats = JSON.parse(await redisClient.get(key))
 
 		if (stats) {
-			stats["name"] = name;
-			stats.score = stats.score || 0;
+			stats["name"] = name
+			stats.score = stats.score || 0
 
 			if (statsList.get(mode) === undefined) {
-				statsList.set(mode, []);
+				statsList.set(mode, [])
 			}
 
-			statsList.get(mode).push(stats);
+			statsList.get(mode).push(stats)
 		}
 	}
 
-	statsMap = new Map();
+	statsMap = new Map()
 
 	for (const [mode, stats] of statsList) {
-		stats.sort((a, b) => b.score - a.score);
+		stats.sort((a, b) => b.score - a.score)
 		stats.forEach((stat, i) => {
-			stat.place = i + 1;
-		});
+			stat.place = i + 1
+		})
 
-		statsMap.set(mode, new Map());
+		statsMap.set(mode, new Map())
 		for (const stat of stats) {
-			statsMap.get(mode).set(stat.name.toLowerCase(), stat);
+			statsMap.get(mode).set(stat.name.toLowerCase(), stat)
 		}
 	}
 
@@ -117,184 +126,273 @@ async function updateRankings() {
 }
 
 function ordinalSuffixOf(i) {
-	var j = i % 10, k = i % 100;
+	var j = i % 10,
+		k = i % 100
 	if (j == 1 && k != 11) {
-		return i + "st";
+		return i + "st"
 	}
 	if (j == 2 && k != 12) {
-		return i + "nd";
+		return i + "nd"
 	}
 	if (j == 3 && k != 13) {
-		return i + "rd";
+		return i + "rd"
 	}
-	return i + "th";
+	return i + "th"
 }
 
 function normValue(v) {
-	return Math.round(v || 0);
+	return Math.round(v || 0)
 }
 
 function formatRanking(stats, mode) {
-	let kd = stats.kills || 0;
-	kd /= stats.deaths || 1;
+	let kd = stats.kills || 0
+	kd /= stats.deaths || 1
 
 	const fields = [
 		{ name: "Kills", value: normValue(stats.kills), inline: true },
 		{ name: "Deaths", value: normValue(stats.deaths), inline: true },
 		{ name: "K/D", value: kd.toFixed(1), inline: true },
-		{ name: "Bounty kills", value: normValue(stats.bounty_kills), inline: true },
+		{
+			name: "Bounty kills",
+			value: normValue(stats.bounty_kills),
+			inline: true,
+		},
 		{ name: "Captures", value: normValue(stats.flag_captures), inline: true },
 		{ name: "HP healed", value: normValue(stats.hp_healed), inline: true },
 	]
 
-	return new Discord.MessageEmbed()
+	return new Discord.EmbedBuilder()
 		.setColor("#0099ff")
 		.setTitle(`${stats.name}, ${ordinalSuffixOf(stats.place)}, ${mode}`)
-		.setDescription(`${stats.name} is in ${ordinalSuffixOf(stats.place)} place, with ${Math.round(stats.score)} score, ${mode} mode.`)
+		.setDescription(
+			`${stats.name} is in ${ordinalSuffixOf(
+				stats.place
+			)} place, with ${Math.round(stats.score)} score, ${mode} mode.`
+		)
 		.addFields(fields)
-		.setTimestamp();
+		.setTimestamp()
 }
 
 function handleRankRequest(message, command, args) {
 	if (!statsMap) {
-		message.channel.send("Please wait, stats are still loading...");
-		return;
+		message.channel.send("Please wait, stats are still loading...")
+		return
 	}
 
-	const username = message.author.username.trim();
-	const nickname = message.member.nickname ? message.member.nickname.trim() : username;
-	const name = args.length > 0 ? args[0].trim() : nickname;
+	const username = message.author.username.trim()
+	const nickname = message.member.nickname
+		? message.member.nickname.trim()
+		: username
+	const name = args.length > 0 ? args[0].trim() : nickname
 
-	let playerStats = [];
+	let playerStats = []
 
 	for (const mode of [...statsMap.keys()].sort()) {
-		let stat = statsMap.get(mode).get(name.toLowerCase());
+		let stat = statsMap.get(mode).get(name.toLowerCase())
 		if (!stat && args.length == 0) {
-			stat = statsMap.get(mode).get(username.toLowerCase());
+			stat = statsMap.get(mode).get(username.toLowerCase())
 		}
 		if (stat) {
-			playerStats.push([stat, mode]);
+			playerStats.push([stat, mode])
 		}
 	}
 
 	if (playerStats.length > 0) {
 		for (const [stat, mode] of playerStats) {
-			message.channel.send(formatRanking(stat, mode));
+			message.channel.send(formatRanking(stat, mode))
 		}
 
-		if (args.length > 0 && (name.toLowerCase() == nickname.toLowerCase() || name.toLowerCase() == username.toLowerCase())) {
-			message.channel.send(`_pst: you can just use \`!${command}\`_`);
+		if (
+			args.length > 0 &&
+			(name.toLowerCase() == nickname.toLowerCase() ||
+				name.toLowerCase() == username.toLowerCase())
+		) {
+			message.channel.send(`_pst: you can just use \`!${command}\`_`)
 		}
 	} else {
 		if (args.length > 0) {
-			message.channel.send(`Unable to find user ${name}`);
+			message.channel.send(`Unable to find user ${name}`)
 		} else if (username.toLowerCase() != nickname.toLowerCase()) {
-			message.channel.send(`Unable to find ${nickname} or ${username}, please provide username explicitly like so: \`!rank username\``);
+			message.channel.send(
+				`Unable to find ${nickname} or ${username}, please provide username explicitly like so: \`!rank username\``
+			)
 		} else {
-			message.channel.send(`Unable to find ${nickname}, please provide username explicitly like so: \`!rank username\``);
+			message.channel.send(
+				`Unable to find ${nickname}, please provide username explicitly like so: \`!rank username\``
+			)
 		}
 	}
 }
 
-const error_embed = new Discord.MessageEmbed()
-	.setColor("RED")
+const error_embed_permission = new Discord.EmbedBuilder()
+	.setColor(Discord.Colors.Red)
 	.setDescription("You dont have the permission to run this command.")
 
+const error_embed_admin_mute = new Discord.EmbedBuilder()
+	.setColor(Discord.Colors.Red)
+	.setDescription("The user you are trying to mute is a staff member!")
+
+const error_embed_admin_unmute = new Discord.EmbedBuilder()
+	.setColor(Discord.Colors.Red)
+	.setDescription("The user you are trying to mute is a staff member!")
 // commands definition
 
-const commands = [];
+const commands = []
 
 //fixme
-commands.push(new SlashCommandBuilder()
-	.setName("rank")
-	.setDescription("Shows ingame rankings")
-);
+commands.push(
+	new Discord.SlashCommandBuilder()
+		.setName("rank")
+		.setDescription("Shows ingame rankings")
+)
 
-commands.push(new SlashCommandBuilder()
-	.setName("x")
-	.setDescription("Send messages on staff channel")
-	.addStringOption(option => option
-		.setName('message')
-		.setDescription('Enter message')
-		.setRequired(true)
-	)
-);
+commands.push(
+	new Discord.SlashCommandBuilder()
+		.setName("x")
+		.setDescription("Send messages on staff channel")
+		.addStringOption((option) =>
+			option
+				.setName("message")
+				.setDescription("Enter message")
+				.setRequired(true)
+		)
+)
 
-commands.push(new SlashCommandBuilder()
-	.setName('mute')
-	.setDescription('Mutes a user')
-	.addUserOption(option => option
-		.setName("user")
-		.setDescription("User to mute")
-		.setRequired(true)
-	)
-);
+commands.push(
+	new Discord.SlashCommandBuilder()
+		.setName("mute")
+		.setDescription("Mutes a user")
+		.addUserOption((option) =>
+			option.setName("user").setDescription("User to mute").setRequired(true)
+		)
+)
 
-commands.push(new SlashCommandBuilder()
-	.setName('unmute')
-	.setDescription('Unmutes a user')
-	.addUserOption(option => option
-		.setName("user")
-		.setDescription("User to unmute")
-		.setRequired(true)
-	)
-);
+commands.push(
+	new Discord.SlashCommandBuilder()
+		.setName("unmute")
+		.setDescription("Unmutes a user")
+		.addUserOption((option) =>
+			option.setName("user").setDescription("User to unmute").setRequired(true)
+		)
+)
 
 discordClient.on("ready", () => {
-	console.log(`Logged in as ${discordClient.user.tag}!`);
+	console.log(`Logged in as ${discordClient.user.tag}`)
 
-	const guild = discordClient.guilds.resolve(guildId);
+	const guild = discordClient.guilds.resolve(guildId)
 
 	//push commands to server
-	guild.commands.set(commands).catch(console.log);
-});
+	guild.commands.set(commands).catch(console.error)
+})
 
-discordClient.on("interactionCreate", async(interaction) => {
+discordClient.on("interactionCreate", async (interaction) => {
 	if (!interaction.isCommand()) {
 		return
 	}
 
-	const {commandName, member, memberPermissions, options} = interaction
+	const { commandName, member, memberPermissions, options } = interaction
 
 	//handle commands
 	if (commandName === "x") {
-		if (!memberPermissions.has("KICK_MEMBERS", true)) {
+		if (
+			!memberPermissions.has(
+				Discord.PermissionsBitField.Flags.KickMembers,
+				true
+			)
+		) {
 			return interaction.reply({
-				embeds: [error_embed],
+				embeds: [error_embed_permission],
 				ephemeral: true,
 			})
 		}
 
-		staffMessages.push(`<${member.user.username}@Discord> ${options.getString("message")}`);
+		staffMessages.push(
+			`<${member.user.username}@Discord> ${options.getString("message")}`
+		)
 
 		interaction.reply({
 			embeds: [
-				new Discord.MessageEmbed()
-					.setColor("BLUE")
-					.setDescription(`**${member.user.username}**: ${options.getString("message")}`)
+				new Discord.EmbedBuilder()
+					.setColor(Discord.Colors.Blue)
+					.setDescription(
+						`**${member.user.username}**: ${options.getString("message")}`
+					),
 			],
 			ephemeral: false,
 		})
 	} else if (commandName === "mute") {
-		const muted_member = options.getMember("user");
-		if (!memberPermissions.has("KICK_MEMBERS", true)) {
+		const muted_member = options.getMember("user")
+
+		if (
+			!memberPermissions.has(
+				Discord.PermissionsBitField.Flags.KickMembers,
+				true
+			)
+		) {
 			return interaction.reply({
-				embeds: [error_embed],
+				embeds: [error_embed_permission],
 				ephemeral: true,
 			})
 		}
-		let muterole = interaction.guild.roles.cache.find(role => role.name === "Muterated");
-		await muted_member.roles.add(muterole.id);
+
+		let muterole = interaction.guild.roles.cache.find(
+			(role) => role.name === "Muterated"
+		)
+
+		if (
+			muted_member.permissions.has(
+				Discord.PermissionsBitField.Flags.KickMembers
+			)
+		) {
+			interaction.reply({
+				embeds: [error_embed_admin_mute],
+				ephemeral: true,
+			})
+		} else {
+			await muted_member.roles.add(muterole.id)
+			interaction.reply({
+				embeds: [
+					new Discord.EmbedBuilder()
+						.setColor(Discord.Colors.Blue)
+						.setDescription(
+							`**${muted_member.user.username}** has been muted.`
+						),
+				],
+				ephemeral: false,
+			})
+		}
+	} else if (commandName === "unmute") {
+		const muted_member = options.getMember("user")
+
+		if (
+			!memberPermissions.has(
+				Discord.PermissionsBitField.Flags.KickMembers,
+				true
+			)
+		) {
+			return interaction.reply({
+				embeds: [error_embed_permission],
+				ephemeral: true,
+			})
+		}
+
+		let muterole = interaction.guild.roles.cache.find(
+			(role) => role.name === "Muterated"
+		)
+
+		await muted_member.roles.remove(muterole.id)
 		interaction.reply({
 			embeds: [
-				new Discord.MessageEmbed()
-					.setColor("BLUE")
-					.setDescription(`**${muted_member.user.username}** has been muted.`)
+				new Discord.EmbedBuilder()
+					.setColor(Discord.Colors.Blue)
+					.setDescription(
+						`**${muted_member.user.username}** has been unmuted.`
+					),
 			],
 			ephemeral: false,
 		})
 	}
-});
+})
 
 /*
 discordClient.on("message", message => {
@@ -312,7 +410,7 @@ discordClient.on("message", message => {
 			message.channel.send(`<#${rankingsChannel}>`);
 		}
 	} else if (command == "help") {
-		const helpEmbed = new Discord.MessageEmbed()
+		const helpEmbed = new Discord.EmbedBuilder()
 			.setTitle("Commands")
 			.setColor("#0000E5")
 			.addField(prefix + "rank", "Shows ingame rankings", false)
@@ -361,23 +459,24 @@ discordClient.on("message", message => {
 */
 
 async function main() {
-	await discordClient.login(token);
+	await discordClient.login(token)
 	///await redisClient.connect();
 
 	//await updateRankings();
 	//setInterval(updateRankings, 60000);
 
-	var http = require('http');
-	http.createServer(function (req, res) {
-		if (req.method == "GET" && staffMessages.length > 0) {
-			res.writeHead(200, {'Content-Type': 'text/plain'});
-			console.log("Relaying staff messages: " + staffMessages.join("-|-"));
-			res.write(JSON.stringify(staffMessages));
-			staffMessages = [];
-		}
+	http
+		.createServer(function (req, res) {
+			if (req.method == "GET" && staffMessages.length > 0) {
+				res.writeHead(200, { "Content-Type": "text/plain" })
+				console.log("Relaying staff messages: " + staffMessages.join("-|-"))
+				res.write(JSON.stringify(staffMessages))
+				staffMessages = []
+			}
 
-		res.writeHead(200);
-		res.end();
-	}).listen(31337, '127.0.0.1');
+			res.writeHead(200)
+			res.end()
+		})
+		.listen(31337, "127.0.0.1")
 }
 main()
