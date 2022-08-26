@@ -73,12 +73,15 @@ async function updateRankingsChannel(statsList) {
 	const messages = await channel.messages.fetch({ limit: rankings.length })
 	if (messages.size < rankings.length) {
 		for (var i = 0; i < rankings.length; ++i) {
-			await channel.send(rankings[i])
+			await channel.send({ embeds: [rankings[i]], ephemeral: false })
 		}
 	} else {
 		let it = messages.values()
 		for (var i = 0; i < rankings.length; ++i) {
-			await it.next().value.edit(rankings[rankings.length - i - 1])
+			await it.next().value.edit({
+				embeds: [rankings[rankings.length - i - 1]],
+				ephemeral: false,
+			})
 		}
 	}
 }
@@ -125,7 +128,7 @@ async function updateRankings() {
 		}
 	}
 
-	//await updateRankingsChannel(statsList)
+	await updateRankingsChannel(statsList)
 	statsPlayers.sort()
 }
 
