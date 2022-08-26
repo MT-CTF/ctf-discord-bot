@@ -11,7 +11,7 @@ const discordClient = new Discord.Client({
 	],
 })
 
-const redisClient = redis.createClient({ url: "redis://localhost:6380" })
+const redisClient = redis.createClient()
 
 const guildId = process.env.GUILD_ID
 const rankingsChannel = process.env.RANKINGS_CHANNEL
