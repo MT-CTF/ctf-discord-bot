@@ -17,8 +17,6 @@ const guildId = process.env.GUILD_ID
 const rankingsChannel = process.env.RANKINGS_CHANNEL
 const token = process.env.TOKEN
 
-const prefix = "!"
-
 let staffMessages = []
 let statsMap = null
 let statsPlayers = null
