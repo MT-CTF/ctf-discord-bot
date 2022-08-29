@@ -457,8 +457,8 @@ async function main() {
 	await updateRankings()
 	setInterval(updateRankings, 6000)
 
-	http
-		.createServer(function (req, res) {
+	// prettier-ignore
+	http.createServer(function (req, res) {
 			if (req.method == "GET" && staffMessages.length > 0) {
 				res.writeHead(200, { "Content-Type": "text/plain" })
 				console.log("Relaying staff messages: " + staffMessages.join("-|-"))
