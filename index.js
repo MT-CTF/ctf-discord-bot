@@ -299,6 +299,7 @@ discordClient.on("interactionCreate", async (interaction) => {
 					embeds: [error_embed_stats_unavaillable],
 					ephemeral: true,
 				})
+				return
 			}
 
 			const option_player = options.getString("player")
@@ -316,8 +317,9 @@ discordClient.on("interactionCreate", async (interaction) => {
 					let embeds = []
 					for (const [stat, mode] of playerStats) {
 						embeds.push(formatRanking(stat, mode))
-						interaction.reply({ embeds: embeds, ephemeral: false })
 					}
+
+					interaction.reply({ embeds: embeds, ephemeral: false })
 				} else {
 					interaction.reply({
 						embeds: [
@@ -349,8 +351,9 @@ discordClient.on("interactionCreate", async (interaction) => {
 					let embeds = []
 					for (const [stat, mode] of playerStats) {
 						embeds.push(formatRanking(stat, mode))
-						interaction.reply({ embeds: embeds, ephemeral: false })
 					}
+
+					interaction.reply({ embeds: embeds, ephemeral: false })
 				} else {
 					if (username.toLowerCase() != name.toLowerCase()) {
 						interaction.reply({
@@ -393,7 +396,7 @@ discordClient.on("interactionCreate", async (interaction) => {
 				ephemeral: false,
 			})
 		} else if (commandName === "leaders") {
-			await interaction.reply({ embeds: [embed_leaders], ephemeral: true })
+			interaction.reply({ embeds: [embed_leaders], ephemeral: true })
 		} else if (commandName === "mute") {
 			const muted_member = options.getMember("user")
 
