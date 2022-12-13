@@ -152,6 +152,8 @@ function normValue(v) {
 function formatRanking(stats, mode) {
 	let kd = stats.kills || 0
 	kd /= stats.deaths || 1
+	
+	let score_per_kill = (stats.score || 0) / (stats.kills || 1);
 
 	const fields = [
 		{ name: "Kills", value: normValue(stats.kills).toString(), inline: true },
@@ -172,6 +174,11 @@ function formatRanking(stats, mode) {
 			value: normValue(stats.hp_healed).toString(),
 			inline: true,
 		},
+		{
+			name: "Avg. score/kill",
+			value: normValue(score_per_kill).toString(),
+			inline: true
+		}
 	]
 
 	return new Discord.EmbedBuilder()
