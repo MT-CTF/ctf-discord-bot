@@ -26,3 +26,4 @@ License: MIT
   - `GUILD_ID` - Guild ID used for slash commands.
   - `RANKINGS_CHANNEL` - Channel ID for the leaderboard.
   - `TOKEN` - Discord bot token, get from bot page in Discord Developer Portal.
+- The environment variables can also be placed in a `.env` file that will be automatically loaded at startup.
