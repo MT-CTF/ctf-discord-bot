@@ -21,6 +21,7 @@ License: MIT
   as shown in [this guide](https://discordjs.guide/preparations/setting-up-a-bot-application.html#creating-your-bot).
 - Invite the Discord bot to the desired server, as shown in
   [this guide](https://discordjs.guide/preparations/adding-your-bot-to-servers.html#bot-invite-links).
+- Install NodeJS v16.9.0 or higher
 - Install dependencies: `npm install`.
 - Run with environment variables: `GUILD_ID=guild_id RANKINGS_CHANNEL=id TOKEN=discord_token npm start`
   - `GUILD_ID` - Guild ID used for slash commands.
