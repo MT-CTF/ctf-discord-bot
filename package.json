@@ -2,10 +2,11 @@
 	"name": "ctf-discord-bot",
 	"version": "0.1.0",
 	"description": "A bot to manage roles and such on Discord",
-	"type": "module",
 	"main": "index.js",
+	"type": "module",
 	"scripts": {
-		"start": "node index.js",
+		"start": "tsc && node dist/index.js",
+		"build": "tsc",
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
 	"repository": {
@@ -19,8 +20,11 @@
 	},
 	"homepage": "https://github.com/MT-CTF/ctf-discord-bot#readme",
 	"dependencies": {
-		"discord.js": "^14.3.0",
-		"dotenv": "^16.0.1",
-		"redis": "^4.0.0-rc.4"
+		"@tsconfig/node16": "^16.1.0",
+		"@types/node": "^16.9.0",
+		"discord.js": "^14.11.0",
+		"dotenv": "^16.3.1",
+		"redis": "^4.6.7",
+		"typescript": "^5.1.6"
 	}
 }
