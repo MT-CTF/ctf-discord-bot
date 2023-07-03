@@ -126,3 +126,9 @@ dist
 .vscode-test
 
 # End of https://www.toptal.com/developers/gitignore/api/linux,node
+
+# VSCode user folder
+.vscode
+
+# JetBrains user folder
+.idea
