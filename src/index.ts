@@ -1,6 +1,6 @@
 /// <reference path="./environment.d.ts" />
 import Discord from "discord.js"
-import { createClient as redisCreateClient } from "redis"
+import * as redis from "redis"
 import http from "http"
 import "dotenv/config"
 import * as process from "process"
@@ -39,7 +39,7 @@ type Stats = {
 }
 
 // Create the database client
-const redisClient = redisCreateClient()
+const redisClient = redis.createClient()
 
 // Read env variables
 const guildId = process.env.GUILD_ID
