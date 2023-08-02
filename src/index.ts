@@ -517,7 +517,8 @@ discordClient.on(Discord.Events.InteractionCreate, async (interaction) => {
 				}
 			}
 		} else if (commandName === "x") {
-			// TODO: Use member's displayName?
+			// TODO: Use member's displayName if possible (must not contain characters Minetest can't display)?
+			// const name = member.nickname ? member.nickname : (member.user.globalName ? member.user.globalName : member.user.username)
 			staffMessages.push(
 				`<${member.user.username}@Discord> ${options.getString("message")}`
 			)
