@@ -444,7 +444,7 @@ discordClient.on(Discord.Events.InteractionCreate, async (interaction) => {
 				}
 			} else {
 				const guildNickname = member.nickname
-				//const globalDisplayName = member.user.globalName
+				const globalDisplayName = member.user.globalName
 				const username = member.user.username
 
 				let playerStats: [Stats, string][] = []
@@ -458,8 +458,11 @@ discordClient.on(Discord.Events.InteractionCreate, async (interaction) => {
 						stat = mode_stats.get(guildNickname.trim().toLowerCase())
 					}
 
-					// TODO: try with the global name too
-					// https://github.com/discordjs/discord.js/pull/9512
+					// Try with the global display name
+					if (globalDisplayName && !stat) {
+						stat = mode_stats.get(globalDisplayName.trim().toLowerCase())
+					}
+					
 					// If no stats, try with the username
 					if (!stat) {
 						stat = mode_stats.get(username.trim().toLowerCase())
@@ -479,15 +482,27 @@ discordClient.on(Discord.Events.InteractionCreate, async (interaction) => {
 					interaction.reply({ embeds: embeds, ephemeral: false })
 				} else {
 					if (guildNickname && username.trim().toLowerCase() != guildNickname.trim().toLowerCase()) {
-						interaction.reply({
-							embeds: [
-								new Discord.EmbedBuilder({
-									color: Discord.Colors.Red,
-									description: `Unable to find ${guildNickname} or ${username}, please provide username explicitly.`
-								})
-							],
-							ephemeral: false
-						})
+						if (globalDisplayName && globalDisplayName.trim().toLowerCase() != guildNickname.trim().toLowerCase()) {
+							interaction.reply({
+								embeds: [
+									new Discord.EmbedBuilder({
+										color: Discord.Colors.Red,
+										description: `Unable to find ${guildNickname}, ${globalDisplayName} or ${username}, please provide username explicitly.`
+									})
+								],
+								ephemeral: false
+							})
+						} else {
+							interaction.reply({
+								embeds: [
+									new Discord.EmbedBuilder({
+										color: Discord.Colors.Red,
+										description: `Unable to find ${guildNickname} or ${username}, please provide username explicitly.`
+									})
+								],
+								ephemeral: false
+							})
+						}
 					} else {
 						interaction.reply({
 							embeds: [
