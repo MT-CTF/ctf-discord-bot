@@ -221,8 +221,10 @@ async function updateRankings(): Promise<void> {
 		}
 	}
 
-	await updateRankingsChannel(statsList)
+	statsPlayers = [...new Set(statsPlayers)]
 	statsPlayers.sort()
+
+	await updateRankingsChannel(statsList)
 }
 
 /**
