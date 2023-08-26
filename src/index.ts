@@ -462,7 +462,7 @@ discordClient.on(Discord.Events.InteractionCreate, async (interaction) => {
 					if (globalDisplayName && !stat) {
 						stat = mode_stats.get(globalDisplayName.trim().toLowerCase())
 					}
-					
+
 					// If no stats, try with the username
 					if (!stat) {
 						stat = mode_stats.get(username.trim().toLowerCase())
@@ -517,17 +517,21 @@ discordClient.on(Discord.Events.InteractionCreate, async (interaction) => {
 				}
 			}
 		} else if (commandName === "x") {
-			// TODO: Use member's displayName if possible (must not contain characters Minetest can't display)?
-			// const name = member.nickname ? member.nickname : (member.user.globalName ? member.user.globalName : member.user.username)
+			const guildNickname = member.nickname
+			const globalDisplayName = member.user.globalName
+			const username = member.user.username
+
+			const name = (guildNickname ? guildNickname : (globalDisplayName ? globalDisplayName : username)).replace(/[^a-zA-Z0-9_-]/g, "")
+
 			staffMessages.push(
-				`<${member.user.username}@Discord> ${options.getString("message")}`
+				`<${name}@Discord> ${options.getString("message")}`
 			)
 
 			interaction.reply({
 				embeds: [
 					new Discord.EmbedBuilder({
 						color: Discord.Colors.Blue,
-						description: `**${member.user.username}**: ${options.getString("message")}`
+						description: `**${name}**: ${options.getString("message")}`
 					})
 				],
 				ephemeral: false
@@ -610,13 +614,16 @@ async function main() {
 	// prettier-ignore
 	http.createServer(function(req, res) {
 		if (req.method === "GET" && staffMessages.length > 0) {
-			res.writeHead(200, { "Content-Type": "text/plain" })
 			console.log("Relaying staff messages: " + staffMessages.join("-|-"))
-			res.write(JSON.stringify(staffMessages))
-			staffMessages = []
-		}
 
-		res.writeHead(200)
+			// Write responce
+			res.writeHead(200, { "Content-Type": "text/plain" })
+			res.write(JSON.stringify(staffMessages))
+
+			staffMessages = []
+		} else {
+			res.writeHead(200)
+		}
 		res.end()
 	})
 		.listen(31337, "127.0.0.1")
