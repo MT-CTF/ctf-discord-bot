@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Start",
+            "request": "launch",
+            "runtimeArgs": ["run-script", "start"],
+            "runtimeExecutable": "npm",
+            "skipFiles": ["<node_internals>/**"],
+            "type": "node"
+        },
+        {
+            "name": "Build",
+            "request": "launch",
+            "runtimeArgs": ["run-script", "build"],
+            "runtimeExecutable": "npm",
+            "skipFiles": ["<node_internals>/**"],
+            "type": "node"
+        }
+    ]
+}
