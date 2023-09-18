@@ -150,6 +150,22 @@ async function updateRankingsChannel(statsList: Map<string, Stats[]>): Promise<v
  */
 async function getStats(key: string): Promise<Stats> {
 	let result = JSON.parse(<string>await redisClient.get(key))
+
+	// For some reason keys can exist for players with no rankings
+	if (!result) {
+		result = {
+			name: "",
+			score: 0,
+			kills: 0,
+			deaths: 0,
+			bounty_kills: 0,
+			flag_attempts: 0,
+			flag_captures: 0,
+			hp_healed: 0,
+			place: Infinity,
+		}
+	}
+
 	return {
 		name: "",
 		score: result.score || 0,
@@ -159,7 +175,7 @@ async function getStats(key: string): Promise<Stats> {
 		flag_attempts: result.flag_attempts || 0,
 		flag_captures: result.flag_captures || 0,
 		hp_healed: result.hp_healed || 0,
-		place: NaN
+		place: NaN,
 	}
 }
 
