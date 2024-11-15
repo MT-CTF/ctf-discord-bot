@@ -1,9 +1,10 @@
 /// <reference path="./environment.d.ts" />
-import Discord from "discord.js"
+import * as Discord from "discord.js"
 import * as redis from "redis"
 import http from "http"
 import "dotenv/config"
 import * as process from "process"
+import assert from "assert"
 
 // Initialise Discord Client
 // We set the ready state to true since functions use this client directly, even if it isn't ready until we call discordClient.login()
@@ -26,12 +27,14 @@ type Stats = {
 	 */
 	name: string,
 	kills: number,
+	kill_assists: number,
 	deaths: number,
 	score: number,
 	bounty_kills: number,
 	flag_captures: number,
 	flag_attempts: number,
 	hp_healed: number,
+	reward_given_to_enemy: number,
 	/**
 	 * Set after sorting a list of stats to the index in the list
 	 */
@@ -65,6 +68,24 @@ let statsMap: Map<string, Map<string, Stats>> | undefined = undefined
  */
 let statsPlayers: string[] | undefined = undefined
 
+let lastUpdated = Date.now()
+
+/**
+ * Take an integer, return a string with the integer plus the ordinal suffix
+ */
+function ordinalSuffixOf(i: number): string {
+	let j = i % 10, k = i % 100
+	if (j == 1 && k != 11) {
+		return i + "st"
+	}
+	if (j == 2 && k != 12) {
+		return i + "nd"
+	}
+	if (j == 3 && k != 13) {
+		return i + "rd"
+	}
+	return i + "th"
+}
 
 /**
  * Return a Discord Embed displaying the top 60 player stats
@@ -72,36 +93,45 @@ let statsPlayers: string[] | undefined = undefined
  * @param mode Game Mode display name ex: "Classes"
  */
 function formatLeaderboard(list: Stats[], mode: string): Discord.EmbedBuilder {
+	const rows = 10
+	const columns = 1
+	const rankings_to = Math.min(50, Math.floor(25 / columns) * rows)
+
 	const rankingsEmbed = new Discord.EmbedBuilder({
 		color: Discord.Colors.Blue,
-		title: "CTF Rankings for mode " + mode
+		description: "# Mode: " + mode + " `[1-" + rankings_to + "]`"
 	})
 
-	const max = Math.min(60, list.length)
-	for (let i = 0; i < max; i += 20) {
-		const from = i
-		const to = i + 20
+	const max = Math.min(rankings_to, list.length)
+	assert((max / rows) * 2 <= 25, "Discord embeds are limited to 25 fields. Tried: " + (1.5 * rankings_to) / columns)
 
-		const newContent = list
+	for (let i = 0; i < max; i += rows) {
+		const from = i
+		const to = i + rows
+
+		const maxScore = Math.round(list[0].score).toLocaleString().length
+		const newContent = "```ansi\n" + list
 			.slice(from, to)
 			.map((stats) => {
 				let kd = stats.kills || 0
 				kd /= stats.deaths || 1
 
-				stats.name = stats.name.replace("_", "\\_")
-
-				return `**${stats.place}. ${stats.name}**\nK/D: ${kd.toFixed(
-					1
-				)} - Score: *${Math.round(stats.score)}*`
+				return [
+					`[1;34m${stats.place.toString().padStart(2)}. [0;37m${stats.name.padEnd(18)}[0m | [1;36mScore: [0m${Math.round(stats.score).toLocaleString().padStart(maxScore)} | [2;36mK/D: [2;0m${kd.toFixed(1)}`,
+				].join('\n')
 			})
-			.join("\n")
-
-		rankingsEmbed.addFields([
-			{ name: `__Top ${from + 1} - ${to}__`, value: newContent }
-		])
+			.join("\n") + "```"
+		try {
+			rankingsEmbed.addFields(
+				{ name: " ", value: newContent, inline: false },
+			)
+		} catch (error) {
+			console.log(newContent.length)
+			console.error(error)
+		}
 	}
 
-	return rankingsEmbed
+	return rankingsEmbed.setFooter({ text: "Last Updated" }).setTimestamp(lastUpdated)
 }
 
 
@@ -114,7 +144,7 @@ async function updateRankingsChannel(statsList: Map<string, Stats[]>): Promise<v
 		return
 	}
 
-	const channel = discordClient.channels.cache.get(rankingsChannel)
+	const channel = await discordClient.channels.fetch(rankingsChannel) as Discord.TextChannel
 	if (!channel || !channel.isTextBased()) {
 		console.error("Rankings Channel doesn't exist or isn't text based")
 		return
@@ -133,9 +163,15 @@ async function updateRankingsChannel(statsList: Map<string, Stats[]>): Promise<v
 	} else {
 		let it = messages.values()
 		for (let i = 0; i < rankings.length; ++i) {
-			await it.next().value.edit({
-				embeds: [rankings[rankings.length - i - 1]]
-			})
+			let next = it.next()
+
+			if (next && next.value) {
+				await next.value.edit({
+					embeds: [rankings[rankings.length - i - 1]]
+				})
+			} else {
+				console.error("Invalid next for 'it': " + messages.values())
+			}
 		}
 	}
 }
@@ -157,11 +193,13 @@ async function getStats(key: string): Promise<Stats> {
 			name: "",
 			score: 0,
 			kills: 0,
+			kill_assists: 0,
 			deaths: 0,
 			bounty_kills: 0,
 			flag_attempts: 0,
 			flag_captures: 0,
 			hp_healed: 0,
+			reward_given_to_enemy: 0,
 			place: Infinity,
 		}
 	}
@@ -170,11 +208,13 @@ async function getStats(key: string): Promise<Stats> {
 		name: "",
 		score: result.score || 0,
 		kills: result.kills || 0,
+		kill_assists: result.kill_assists || 0,
 		deaths: result.deaths || 0,
 		bounty_kills: result.bounty_kills || 0,
 		flag_attempts: result.flag_attempts || 0,
 		flag_captures: result.flag_captures || 0,
 		hp_healed: result.hp_healed || 0,
+		reward_given_to_enemy: result.reward_given_to_enemy || 0,
 		place: NaN,
 	}
 }
@@ -240,66 +280,65 @@ async function updateRankings(): Promise<void> {
 	statsPlayers = [...new Set(statsPlayers)]
 	statsPlayers.sort()
 
+	lastUpdated = Date.now()
+
 	await updateRankingsChannel(statsList)
 }
 
-/**
- * Take an integer, return a string with the integer plus the ordinal suffix
- */
-function ordinalSuffixOf(i: number): string {
-	let j = i % 10, k = i % 100
-	if (j == 1 && k != 11) {
-		return i + "st"
-	}
-	if (j == 2 && k != 12) {
-		return i + "nd"
-	}
-	if (j == 3 && k != 13) {
-		return i + "rd"
-	}
-	return i + "th"
-}
-
-function formatRanking(stats: Stats, mode: string) {
+function formatRanking(stats: Stats, mode: string, mostscore: number) {
 	let kd = stats.kills / (stats.deaths || 1)
 
 	let score_per_kill = stats.score / (stats.kills || 1)
+	const pad_amount = Math.max(kd * 100, Math.pow(10, Math.round(mostscore).toLocaleString().toString().length), Math.round(stats.kill_assists), Math.round(stats.bounty_kills)).toString().length
 
-	const fields: Discord.APIEmbedField[] = [
-		{ name: "Kills", value: Math.round(stats.kills).toString(), inline: true },
-		{ name: "Deaths", value: Math.round(stats.deaths).toString(), inline: true },
-		{ name: "K/D", value: kd.toFixed(1), inline: true },
-		{
-			name: "Bounty kills",
-			value: Math.round(stats.bounty_kills).toString(),
-			inline: true
-		},
-		{
-			name: "Captures",
-			value: Math.round(stats.flag_captures).toString(),
-			inline: true
-		},
-		{
-			name: "HP healed",
-			value: Math.round(stats.hp_healed).toString(),
-			inline: true
-		},
-		{
-			name: "Avg. score/kill",
-			value: Math.round(score_per_kill).toString(),
-			inline: true
-		}
-	]
+	const content = [
+		"```ansi",
+		"[1;36mScore:       [1;37m" + Math.round(stats.score).toLocaleString().toString().padStart(pad_amount) + "[0m",
+		"[1;36mKills:       [0m" + Math.round(stats.kills).toString().padStart(pad_amount),
+		"[1;36mHP Healed:   [0m" + Math.round(stats.hp_healed).toString().padStart(pad_amount),
+		"[1;36mKill Assists: [0m" + Math.round(stats.kill_assists).toString().padStart(pad_amount - 1),
+		"[1;36mDeaths:      [0m" + Math.round(stats.deaths).toString().padStart(pad_amount),
+		"[1;36mBounty Kills: [0m" + Math.round(stats.bounty_kills).toString().padStart(pad_amount - 1),
+		"[1;36mCaptures:    [0m" + Math.round(stats.flag_captures).toString().padStart(pad_amount),
+		"[1;36mAttempts:    [0m" + Math.round(stats.flag_attempts).toString().padStart(pad_amount),
+		"[2;36mK/D:         [0m" + kd.toFixed(1).toString().padStart(pad_amount),
+		"[2;36mScore/Kill:  [0m" + Math.round(score_per_kill).toString().padStart(pad_amount),
+		"```",
+	].join("\n")
 
-	return new Discord.EmbedBuilder({
-		color: Discord.Colors.Blue,
-		title: `${stats.name}, ${ordinalSuffixOf(stats.place)}, ${mode}`,
-		description: `${stats.name} is in ${ordinalSuffixOf(
-			stats.place
-		)} place, with ${Math.round(stats.score)} score, ${mode} mode.`,
-		fields: fields
-	})
+	return { name: `${mode}: ${Discord.inlineCode(ordinalSuffixOf(stats.place))}`, value: content, inline: true }
 }
+
+// Old version with more row-like structure for stats. Kept in case of future reimplementation
+//
+// function formatRanking(stats: Stats, mode: string) {
+// 	let kd = stats.kills / (stats.deaths || 1)
+
+// 	let score_per_kill = stats.score / (stats.kills || 1)
+// 	const pad_amount_c1 = Math.max(Math.round(stats.score).toString().toLocaleString().length, Math.round(stats.kills), Math.round(stats.deaths)).toString().length + 1
+// 	const pad_amount_c2 = Math.max(Math.round(stats.kill_assists), Math.round(stats.bounty_kills), Math.round(stats.flag_attempts), Math.round(stats.hp_healed)).toString().length
+
+// 	const content = [
+// 		"```ansi",
+// 		"[1;36mScore:    [1;37m" + Math.round(stats.score).toString().toLocaleString().padStart(pad_amount_c1) +
+// 		"[0m | [1;36mHP Healed:    [0m" + Math.round(stats.hp_healed).toString().padStart(pad_amount_c2),
+// 		"[1;36mKills:    [0m" + Math.round(stats.kills).toString().padStart(pad_amount_c1) +
+// 		" | [1;36mKill Assists: [0m" + Math.round(stats.kill_assists).toString().padStart(pad_amount_c2),
+// 		"[1;36mDeaths:   [0m" + Math.round(stats.deaths).toString().padStart(pad_amount_c1) +
+// 		" | [1;36mBounty Kills: [0m" + Math.round(stats.bounty_kills).toString().padStart(pad_amount_c2),
+// 		"[1;36mCaptures: [0m" + Math.round(stats.flag_captures).toString().padStart(pad_amount_c1) +
+// 		" | [1;36mAttempts:     [0m" + Math.round(stats.flag_attempts).toString().padStart(pad_amount_c2),
+// 		"[1;34mK/D: [0m" + kd.toFixed(1) +
+// 		" | [1;34m~Score/Kill: [0m" + Math.round(score_per_kill).toString(),
+// 		"```",
+// 	].join("\n")
+
+// 	return new Discord.EmbedBuilder({
+// 		color: (stats.place <= 20 || stats.place == 1337) ? Discord.Colors.Gold : Discord.Colors.Blue,
+// 		title: `${stats.name}: ${Discord.inlineCode(ordinalSuffixOf(stats.place))} [${mode}]`,
+// 		description: content,
+// 	})
+// }
 
 const error_embed_admin_mute = new Discord.EmbedBuilder({
 	color: Discord.Colors.Red,
@@ -318,14 +357,14 @@ const error_embed_stats_unavaillable = new Discord.EmbedBuilder({
 
 let embed_leaders = new Discord.EmbedBuilder({ color: Discord.Colors.Blue })
 if (rankingsChannel) {
-	embed_leaders = embed_leaders.setDescription(`Checkout <#${rankingsChannel}>`)
+	embed_leaders = embed_leaders.setDescription(`Check out <#${rankingsChannel}>`)
 } else {
 	embed_leaders = embed_leaders.setDescription("There is no rankings channel")
 }
 
 // commands definition
 
-const commands: Omit<Discord.SlashCommandBuilder, "addSubcommand" | "addSubcommandGroup">[] = []
+const commands: (Discord.SlashCommandOptionsOnlyBuilder)[] = []
 
 commands.push(
 	new Discord.SlashCommandBuilder()
@@ -442,9 +481,23 @@ discordClient.on(Discord.Events.InteractionCreate, async (interaction) => {
 
 				if (playerStats.length > 0) {
 					let embeds: Discord.EmbedBuilder[] = []
+					let embed = new Discord.EmbedBuilder({
+						color: Math.min(playerStats[0][0].place, playerStats[1][0].place, playerStats[2][0].place) <= 20 ? Discord.Colors.Gold : Discord.Colors.Blue,
+						description: `## Rankings of ${playerStats[0][0].name}`
+					})
+
+					let mcount = 0;
 					for (const [stat, mode] of playerStats) {
-						embeds.push(formatRanking(stat, mode))
+						embed.addFields(formatRanking(stat, mode, Math.max(playerStats[0][0].score, playerStats[1][0].score, playerStats[2][0].score)))
+
+						if (++mcount % 2 == 0)
+							embed.addFields({ name: " ", value: " ", inline: false })
 					}
+
+					if (mcount % 2 != 0)
+						embed.addFields({ name: " ", value: " ", inline: true })
+
+					embeds.push(embed.setFooter({ text: "Last Updated" }).setTimestamp(lastUpdated))
 
 					interaction.reply({ embeds: embeds, ephemeral: false })
 				} else {
@@ -491,9 +544,23 @@ discordClient.on(Discord.Events.InteractionCreate, async (interaction) => {
 
 				if (playerStats.length > 0) {
 					let embeds: Discord.EmbedBuilder[] = []
+					let embed = new Discord.EmbedBuilder({
+						color: Math.min(playerStats[0][0].place, playerStats[1][0].place, playerStats[2][0].place) <= 20 ? Discord.Colors.Gold : Discord.Colors.Blue,
+						description: `## Rankings of ${playerStats[0][0].name}`
+					})
+
+					let mcount = 0;
 					for (const [stat, mode] of playerStats) {
-						embeds.push(formatRanking(stat, mode))
+						embed.addFields(formatRanking(stat, mode, Math.max(playerStats[0][0].score, playerStats[1][0].score, playerStats[2][0].score)))
+
+						if (++mcount % 2 == 0)
+							embed.addFields({ name: " ", value: " ", inline: false })
 					}
+
+					if (mcount % 2 != 0)
+						embed.addFields({ name: " ", value: " ", inline: true })
+
+					embeds.push(embed.setFooter({ text: "Last Updated" }).setTimestamp(lastUpdated))
 
 					interaction.reply({ embeds: embeds, ephemeral: false })
 				} else {
@@ -623,12 +690,11 @@ async function main() {
 	await discordClient.login(token)
 	await redisClient.connect()
 
-	// Update the rankings cache every 6s
 	await updateRankings()
-	setInterval(updateRankings, 6000)
+	// Update the rankings cache every 5m
+	setInterval(updateRankings, 1000 * 60 * 5)
 
-	// prettier-ignore
-	http.createServer(function(req, res) {
+	http.createServer(function (req, res) {
 		if (req.method === "GET" && staffMessages.length > 0) {
 			console.log("Relaying staff messages: " + staffMessages.join("-|-"))
 

@@ -10,16 +10,13 @@
         "resolveJsonModule": true,
         "removeComments": true,
         "typeRoots": [
-            "node_modules/@types"
+            "./node_modules/@types",
         ],
         "sourceMap": false,
         "baseUrl": "./"
     },
     "files": [
-        "src/index.ts"
-    ],
-    "include": [
-        "./**/*.ts"
+        "src/index.ts",
     ],
     "exclude": [
         "node_modules",
