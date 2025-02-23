@@ -16,16 +16,7 @@ const discordClient: Discord.Client<true> = new Discord.Client({
 	]
 })
 
-/**
- * Object representing stats of a player for a specific game mode
- *
- * `name` and `place` can be placeholder values depending of where this object is used
- */
-type Stats = {
-	/**
-	 * The name of the player, initialised from the database key
-	 */
-	name: string,
+interface redisStats {
 	kills: number,
 	kill_assists: number,
 	deaths: number,
@@ -35,11 +26,26 @@ type Stats = {
 	flag_attempts: number,
 	hp_healed: number,
 	reward_given_to_enemy: number,
-	/**
-	 * Set after sorting a list of stats to the index in the list
-	 */
-	place: number,
 }
+
+const redisSTATKEYS: (keyof redisStats)[] = [
+	"kills",
+	"kill_assists",
+	"deaths",
+	"score",
+	"bounty_kills",
+	"flag_captures",
+	"flag_attempts",
+	"hp_healed",
+	"reward_given_to_enemy",
+]
+
+/**
+ * Object representing stats of a player for a specific game mode
+ *
+ * `name` and `place` can be placeholder values depending of where this object is used
+ */
+interface Stats extends redisStats { name: string, place: number };
 
 // Create the database client
 const redisClient = redis.createClient()
@@ -139,8 +145,8 @@ function formatLeaderboard(list: Stats[], mode: string): Discord.EmbedBuilder {
  * Update the embeds containing the global leaderboard in the rankings channel
  * @param statsList Map of sorted player stats, indexed by game mode
  */
-async function updateRankingsChannel(statsList: Map<string, Stats[]>): Promise<void> {
-	if (!rankingsChannel) {
+async function updateRankingsChannel(): Promise<void> {
+	if (!rankingsChannel || statsMap === undefined) {
 		return
 	}
 
@@ -151,8 +157,11 @@ async function updateRankingsChannel(statsList: Map<string, Stats[]>): Promise<v
 	}
 
 	let rankings: Discord.EmbedBuilder[] = []
-	for (const mode of [...statsList.keys()].sort()) {
-		rankings.push(formatLeaderboard(<Stats[]>statsList.get(mode), mode))
+	for (const mode of [...statsMap.keys()].sort()) {
+		rankings.push(formatLeaderboard(
+			Array.from((<Map<string, Stats>>statsMap.get(mode)).values()),
+			mode
+		))
 	}
 
 	const messages = await channel.messages.fetch({ limit: rankings.length })
@@ -184,39 +193,40 @@ async function updateRankingsChannel(statsList: Map<string, Stats[]>): Promise<v
  *
  * `name` and `place` are set to placeholder values
  */
-async function getStats(key: string): Promise<Stats> {
-	let result = JSON.parse(<string>await redisClient.get(key))
-
-	// For some reason keys can exist for players with no rankings
-	if (!result) {
-		result = {
-			name: "",
-			score: 0,
-			kills: 0,
-			kill_assists: 0,
-			deaths: 0,
-			bounty_kills: 0,
-			flag_attempts: 0,
-			flag_captures: 0,
-			hp_healed: 0,
-			reward_given_to_enemy: 0,
-			place: Infinity,
-		}
+async function getStats(mode: string, pname: string): Promise<Stats> {
+	let output: Stats = {
+		name: pname,
+		score: 0,
+		kills: 0,
+		kill_assists: 0,
+		deaths: 0,
+		bounty_kills: 0,
+		flag_attempts: 0,
+		flag_captures: 0,
+		hp_healed: 0,
+		reward_given_to_enemy: 0,
+		place: Infinity,
 	}
 
-	return {
-		name: "",
-		score: result.score || 0,
-		kills: result.kills || 0,
-		kill_assists: result.kill_assists || 0,
-		deaths: result.deaths || 0,
-		bounty_kills: result.bounty_kills || 0,
-		flag_attempts: result.flag_attempts || 0,
-		flag_captures: result.flag_captures || 0,
-		hp_healed: result.hp_healed || 0,
-		reward_given_to_enemy: result.reward_given_to_enemy || 0,
-		place: NaN,
-	}
+	let has_nonzero = false;
+
+	await Promise.all(
+		redisSTATKEYS.map(async (rank) => {
+			let val = await redisClient.zScore(mode + "|" + rank, pname)
+
+			if (val != null) {
+				output[rank] = val;
+
+				if (rank == "score") {
+					let place = await redisClient.zRevRank(mode + "|" + rank, pname);
+
+					output.place = (place !== null ? place : Infinity) + 1;
+				}
+			}
+		})
+	);
+
+	return output;
 }
 
 /**
@@ -239,50 +249,35 @@ function modeTechnicalToName(technical_name: string): string {
  * Update ranking data cache, trigger update of rankings channel
  */
 async function updateRankings(): Promise<void> {
-	const statsList: Map<string, Stats[]> = new Map()
+	let newStats: Map<string, Map<string, Stats>> = new Map()
 	statsPlayers = []
-	for (const key of await redisClient.keys("ctf_mode_*")) {
-		// Determine the mode and the player name from the key
-		const [rawMode, name] = key.split("|", 2)
-		const mode = modeTechnicalToName(rawMode)
 
-		// Get stats for the key
-		let stats = await getStats(key)
+	await Promise.all((["ctf_mode_classes", "ctf_mode_classic", "ctf_mode_nade_fight"]).map(async (modetech) => {
+		// { score: <amount of given rank, which in this case is ctf score (derived from "|score")>, value: <playername> }
+		let ranks = await redisClient.zRangeWithScores(modetech + "|score", 0, -1, { REV: true })
 
-		if (stats) {
-			// Set player name from the key
-			stats.name = name
+		let mode = modeTechnicalToName(modetech);
 
-			// Initialize the ranking array
-			if (statsList.get(mode) === undefined) {
-				statsList.set(mode, [])
-			}
-
-			(<Stats[]>statsList.get(mode)).push(stats)
+		if (newStats.get(mode) === undefined) {
+			newStats.set(mode, new Map())
 		}
-		statsPlayers.push(name)
-	}
 
-	statsMap = new Map()
+		await Promise.all(ranks.map(async (vals, place) => {
+			let stats = await getStats(modetech, vals.value);
 
-	for (const [mode, stats] of statsList) {
-		stats.sort((a, b) => b.score - a.score)
-		stats.forEach((stat, i) => {
-			stat.place = i + 1
-		})
+			(<Map<string, Stats>>newStats.get(mode)).set(vals.value, stats);
+			(statsPlayers as Array<string>).push(vals.value);
+		}))
+	}))
 
-		statsMap.set(mode, new Map())
-		for (const stat of stats) {
-			(<Map<string, Stats>>statsMap.get(mode)).set(stat.name.toLowerCase(), stat)
-		}
-	}
+	statsMap = newStats;
 
 	statsPlayers = [...new Set(statsPlayers)]
 	statsPlayers.sort()
 
 	lastUpdated = Date.now()
 
-	await updateRankingsChannel(statsList)
+	await updateRankingsChannel()
 }
 
 function formatRanking(stats: Stats, mode: string, mostscore: number) {
@@ -467,13 +462,13 @@ discordClient.on(Discord.Events.InteractionCreate, async (interaction) => {
 				return
 			}
 
-			const option_player = options.getString("player")
+			const option_player = options.getString("player")?.trim()
 			if (option_player) {
 				let playerStats: [Stats, string][] = []
 
 				for (const mode of [...statsMap.keys()].sort()) {
 					let mode_stats = <NonNullable<Map<string, Stats>>>statsMap.get(mode)
-					let stat = mode_stats.get(option_player.toLowerCase())
+					let stat = mode_stats.get(option_player)
 					if (stat) {
 						playerStats.push([stat, mode])
 					}
@@ -524,17 +519,17 @@ discordClient.on(Discord.Events.InteractionCreate, async (interaction) => {
 
 					// First try with the user server nick name
 					if (guildNickname) {
-						stat = mode_stats.get(guildNickname.trim().toLowerCase())
+						stat = mode_stats.get(guildNickname.trim())
 					}
 
 					// Try with the global display name
 					if (globalDisplayName && !stat) {
-						stat = mode_stats.get(globalDisplayName.trim().toLowerCase())
+						stat = mode_stats.get(globalDisplayName.trim())
 					}
 
 					// If no stats, try with the username
 					if (!stat) {
-						stat = mode_stats.get(username.trim().toLowerCase())
+						stat = mode_stats.get(username.trim())
 					}
 
 					if (stat) {
@@ -564,8 +559,8 @@ discordClient.on(Discord.Events.InteractionCreate, async (interaction) => {
 
 					interaction.reply({ embeds: embeds, ephemeral: false })
 				} else {
-					if (guildNickname && username.trim().toLowerCase() != guildNickname.trim().toLowerCase()) {
-						if (globalDisplayName && globalDisplayName.trim().toLowerCase() != guildNickname.trim().toLowerCase()) {
+					if (guildNickname && username.trim() != guildNickname.trim()) {
+						if (globalDisplayName && globalDisplayName.trim() != guildNickname.trim()) {
 							interaction.reply({
 								embeds: [
 									new Discord.EmbedBuilder({
