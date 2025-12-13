@@ -307,19 +307,16 @@ async function updateGameStats(): Promise<void> {
 			embed.setImage(getMapImage(data.current_map.technical_name) + "/screenshot.png?raw=true")
 
 			const messages = await channel.messages.fetch({ limit: 1 })
-			if (messages.size < 1) {
-				await channel.send({ embeds: [embed] })
-			} else {
-				let message = messages.values().next()
-
-				if (message && message.value) {
-					await message.value.edit({
+			const message = messages.last();
+			if (message) {
+				if (!message.author.bot) {
+					await channel.send({ embeds: [embed] })
+				} else {
+					await message.edit({
 						embeds: [
 							embed
 						]
 					})
-				} else {
-					console.error("Invalid message[0]: " + messages.values())
 				}
 			}
 		}
