@@ -13,8 +13,15 @@ declare global {
 			 * The Bot token, used to authenticate to the Discord API
 			 */
 			TOKEN: string;
+			/**
+			 * Channel ID, used to update game stats message
+			 */
+			GAME_STATS_CHANNEL: string;
+
+			// Controls wether REDIS should be used. Default: yes
+			USE_REDIS: string
 		}
 	}
 }
 
-export {}
+export { }

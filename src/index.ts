@@ -5,14 +5,13 @@ import http from "http"
 import "dotenv/config"
 import * as process from "process"
 import assert from "assert"
+import fetch from 'node-fetch';
 
 // Initialise Discord Client
 // We set the ready state to true since functions use this client directly, even if it isn't ready until we call discordClient.login()
 const discordClient: Discord.Client<true> = new Discord.Client({
 	intents: [
-		Discord.GatewayIntentBits.Guilds,
-		Discord.GatewayIntentBits.GuildMessages,
-		Discord.GatewayIntentBits.GuildIntegrations
+		Discord.GatewayIntentBits.MessageContent
 	]
 })
 
@@ -47,13 +46,34 @@ const redisSTATKEYS: (keyof redisStats)[] = [
  */
 interface Stats extends redisStats { name: string, place: number };
 
+interface GameApi {
+	"current_map": {
+		"name": string,
+		"start_time": number,
+		"technical_name": string
+	},
+
+	"current_mode": {
+		"matches": number,
+		"matches_played": number,
+		"name": "classes" | "classic" | "nade_fight"
+	},
+
+	"player_info": {
+		"count": number,
+		"players": [string]
+	}
+}
+
 // Create the database client
 const redisClient = redis.createClient()
 
 // Read env variables
 const guildId = process.env.GUILD_ID
 const rankingsChannel = process.env.RANKINGS_CHANNEL
+const gameStatsChannel = process.env.GAME_STATS_CHANNEL
 const token = process.env.TOKEN
+const useRedis = process.env.USE_REDIS === undefined ? true : false
 
 /**
  * Queue of ingame staff messages to be fetched by the Minetest server
@@ -236,12 +256,76 @@ async function getStats(mode: string, pname: string): Promise<Stats> {
  */
 function modeTechnicalToName(technical_name: string): string {
 	return technical_name
-		.substring(9)
 		.split("_")
 		.map((word) => {
 			return word[0].toUpperCase() + word.substring(1)
 		})
 		.join(" ")
+}
+
+function getMapImage(map_name: string) {
+	let url = "https://github.com/MT-CTF/maps/blob/master/"
+
+	switch (map_name) {
+		case "snow_globe":
+			url = "https://github.com/MT-CTF/seasonal_xmas/blob/master/xmas_maps/maps/"
+			break;
+	}
+
+	return (url + map_name);
+}
+
+//
+async function updateGameStats(): Promise<void> {
+	try {
+		const response = await fetch("http://ctf.rubenwardy.com/api");
+
+		const data = await (response.json() as Promise<GameApi>);
+
+		if (!data) {
+			console.error("Failed to fetch API data");
+			return
+		}
+
+		const channel = await discordClient.channels.fetch(gameStatsChannel) as Discord.TextChannel
+		if (!channel || !channel.isTextBased()) {
+			console.error("Game Stats Channel doesn't exist or isn't text based")
+			return
+		}
+
+		if (data.current_map) {
+			var start_time = new Date(data.current_map.start_time * 1000);
+			const embed = new Discord.EmbedBuilder({
+				color: Discord.Colors.Blue,
+				"title": data.current_map.name + " - " + modeTechnicalToName(data.current_mode.name),
+				"description": "**Match**: " + data.current_mode.matches_played + "/" + data.current_mode.matches +
+					"\n**Duration**: " + Math.round((Date.now() - start_time.getTime()) / 60000) + "m" +
+					"\n**Players (" + data.player_info.count + ")**: " + Discord.escapeUnderline(Discord.escapeItalic(data.player_info.players.join(", "))),
+			})
+
+			embed.setFooter({ text: "Last Updated" }).setTimestamp(Date.now())
+			embed.setImage(getMapImage(data.current_map.technical_name) + "/screenshot.png?raw=true")
+
+			const messages = await channel.messages.fetch({ limit: 1 })
+			if (messages.size < 1) {
+				await channel.send({ embeds: [embed] })
+			} else {
+				let message = messages.values().next()
+
+				if (message && message.value) {
+					await message.value.edit({
+						embeds: [
+							embed
+						]
+					})
+				} else {
+					console.error("Invalid message[0]: " + messages.values())
+				}
+			}
+		}
+	} catch (error) {
+		console.log(error);
+	}
 }
 
 
@@ -683,11 +767,20 @@ discordClient.on(Discord.Events.InteractionCreate, async (interaction) => {
 async function main() {
 	// Connect to Discord and the database
 	await discordClient.login(token)
-	await redisClient.connect()
 
-	await updateRankings()
-	// Update the rankings cache every 5m
-	setInterval(updateRankings, 1000 * 60 * 5)
+	if (useRedis) {
+		await redisClient.connect()
+
+		await updateRankings()
+		// Update the rankings cache every 5m
+		setInterval(updateRankings, 1000 * 60 * 5)
+	}
+
+	if (gameStatsChannel) {
+		await updateGameStats()
+		// Update the game stats every 30s
+		setInterval(updateGameStats, 1000 * 30)
+	}
 
 	http.createServer(function (req, res) {
 		if (req.method === "GET" && staffMessages.length > 0) {
@@ -702,8 +795,7 @@ async function main() {
 			res.writeHead(200)
 		}
 		res.end()
-	})
-		.listen(31337, "127.0.0.1")
+	}).listen(31337, "127.0.0.1")
 }
 
 await main()

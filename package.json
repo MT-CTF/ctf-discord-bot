@@ -24,6 +24,7 @@
 		"@types/node": "^16.18.44",
 		"discord.js": "^14.13.0",
 		"dotenv": "^16.3.1",
+		"node-fetch": "^3.3.2",
 		"redis": "^4.7.0",
 		"typescript": "^5.2.2"
 	}

@@ -26,5 +26,6 @@ License: MIT
 - Run with environment variables: `GUILD_ID=guild_id RANKINGS_CHANNEL=id TOKEN=discord_token npm start`
   - `GUILD_ID` - Guild ID used for slash commands.
   - `RANKINGS_CHANNEL` - Channel ID for the leaderboard.
+  - `GAME_STATS_WEBHOOK` - Webhook URL to post game stats to
   - `TOKEN` - Discord bot token, get from bot page in Discord Developer Portal.
 - The environment variables can also be placed in a `.env` file that will be automatically loaded at startup.
