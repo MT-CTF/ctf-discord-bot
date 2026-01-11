@@ -70,6 +70,7 @@ const redisClient = redis.createClient()
 
 // Read env variables
 const guildId = process.env.GUILD_ID
+const host = process.env.HOST ? process.env.HOST : "127.0.0.1"
 const rankingsChannel = process.env.RANKINGS_CHANNEL
 const gameStatsChannel = process.env.GAME_STATS_CHANNEL
 const token = process.env.TOKEN
@@ -792,7 +793,7 @@ async function main() {
 			res.writeHead(200)
 		}
 		res.end()
-	}).listen(31337, "127.0.0.1")
+	}).listen(31337, host)
 }
 
 await main()
