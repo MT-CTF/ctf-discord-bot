@@ -65,16 +65,18 @@ interface GameApi {
 	}
 }
 
-// Create the database client
-const redisClient = redis.createClient()
-
 // Read env variables
-const guildId = process.env.GUILD_ID
 const host = process.env.HOST ? process.env.HOST : "127.0.0.1"
+const redis_host = process.env.REDIS_HOST ? process.env.REDIS_HOST : "127.0.0.1"
+const guildId = process.env.GUILD_ID
 const rankingsChannel = process.env.RANKINGS_CHANNEL
 const gameStatsChannel = process.env.GAME_STATS_CHANNEL
 const token = process.env.TOKEN
 const useRedis = process.env.USE_REDIS === undefined ? true : false
+
+
+// Create the database client
+const redisClient = redis.createClient({ host: redis_host })
 
 /**
  * Queue of ingame staff messages to be fetched by the Minetest server
