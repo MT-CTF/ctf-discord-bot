@@ -76,7 +76,7 @@ const useRedis = process.env.USE_REDIS === undefined ? true : false
 
 
 // Create the database client
-const redisClient = redis.createClient({ host: redis_host })
+const redisClient = redis.createClient({ socket: {host: redis_host} })
 
 /**
  * Queue of ingame staff messages to be fetched by the Minetest server
