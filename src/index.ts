@@ -372,12 +372,6 @@ async function updateGameStats(): Promise<void>
  */
 async function updateRankings(): Promise<void>
 {
-	if (!redisClient.isReady)
-	{
-		lastUpdated = Date.now();
-		return;
-	}
-
 	let newStats: Map<string, Map<string, Stats>> = new Map();
 	statsPlayers = [];
 
