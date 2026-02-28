@@ -879,14 +879,14 @@ async function main()
 		}).on("ready", function ()
 		{
 			console.log("[REDIS]: Successfully connected to redis db");
+
+			updateRankings();
+
+			// Update the rankings cache every 5m
+			setInterval(updateRankings, 1000 * 60 * 5);
 		});
 
 		connect_client();
-
-		await updateRankings();
-
-		// Update the rankings cache every 5m
-		setInterval(updateRankings, 1000 * 60 * 5);
 	}
 
 	if (gameStatsChannel)
