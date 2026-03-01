@@ -621,14 +621,22 @@ discordClient.on(Discord.Events.InteractionCreate, async (interaction) =>
 				{
 					let embeds: Discord.EmbedBuilder[] = [];
 					let embed = new Discord.EmbedBuilder({
-						color: Math.min(playerStats[0][0].place, playerStats[1][0].place, playerStats[2][0].place) <= 20 ? Discord.Colors.Gold : Discord.Colors.Blue,
-						description: `## Rankings of ${playerStats[0][0].name}`
+						color: Math.min(
+							playerStats[0] ? playerStats[0][0].place : Infinity,
+							playerStats[1] ? playerStats[1][0].place : Infinity,
+							playerStats[2] ? playerStats[2][0].place : Infinity
+						) <= 20 ? Discord.Colors.Gold : Discord.Colors.Blue,
+						description: `## Rankings of ${option_player}`
 					});
 
 					let mcount = 0;
 					for (const [stat, mode] of playerStats)
 					{
-						embed.addFields(formatRanking(stat, mode, Math.max(playerStats[0][0].score, playerStats[1][0].score, playerStats[2][0].score)));
+						embed.addFields(formatRanking(stat, mode, Math.max(
+							playerStats[0] ? playerStats[0][0].score : -1,
+							playerStats[1] ? playerStats[1][0].score : -1,
+							playerStats[2] ? playerStats[2][0].score : -1
+						)));
 
 						if (++mcount % 2 == 0)
 							embed.addFields({ name: " ", value: " ", inline: false });
