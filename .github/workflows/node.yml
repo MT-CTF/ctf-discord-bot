@@ -1,29 +1,42 @@
 ---
-name: NodeJS
+name: CI
 
 on:
   push:
-    branches: [ "master" ]
+    branches:
+      - master
+    tags:
+      - "*"
   pull_request:
-    branches: [ "master" ]
+    branches:
+      - master
   workflow_dispatch:
 
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  main:
+    name: Main
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
     steps:
-    - name: Checkout Source Code
-      uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-    - name: Install Node.js v16.18.0
-      uses: actions/setup-node@v3
-      with:
-        node-version: 16.18.0
-        cache: 'npm'
+      - name: Install PNPM
+        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          install: true
 
-    - name: Install dependencies
-      run: npm ci
+      - name: Lint
+        run: pnpm run lint
 
-    - name: Build Typescript
-      run: npm run build
+      - name: Build
+        run: pnpm run build
