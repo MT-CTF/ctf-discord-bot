@@ -1,0 +1,6 @@
+# Supply chain security settings
+blockExoticSubdeps: true
+minimumReleaseAge: 360 # 6 hours
+trustPolicy: no-downgrade
+
+pmOnFail: ignore
